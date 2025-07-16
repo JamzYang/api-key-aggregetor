@@ -1,3 +1,4 @@
+# Development and source files
 .vscode/**
 .vscode-test/**
 src/**
@@ -9,3 +10,44 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+
+
+# Test files and demos
+**/*.test.js
+**/*.spec.js
+**/*.test.ts
+**/*.spec.ts
+src/test/**
+src/demo/**
+jest.config.js
+
+# Development tools and configs
+package-lock.json
+*.log
+.env
+.env.*
+eslint.config.mjs
+
+# Documentation (keep main README)
+README.zh-CN.md
+DEVELOPMENT.md
+
+# IDE and editor files
+.idea/**
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git files
+.git/**
+.gitignore

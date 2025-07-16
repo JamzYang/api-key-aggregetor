@@ -17,10 +17,7 @@
 		// "noUnusedParameters": true,  /* Report errors on unused parameters. */
 		"types": [
 			"node",
-			"mocha"
+			"jest"
 		]
-	},
-	"exclude": [
-		"node_modules/@types/jest"
-	]
+	}
 }

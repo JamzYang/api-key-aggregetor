@@ -1,8 +1,9 @@
 import { GoogleGenerativeAI, GenerativeModel, GenerateContentResponse } from '@google/generative-ai';
 import { ApiKey } from '../types';
 import config from '../config';
+import { formatKeyForLogging } from '../utils/keyFormatter';
 
-// 定义一个简单的错误类型，用于传递 Google API 错误信息，特别是包含 Key 信息
+// Define a simple error type for passing Google API error information, especially containing Key information
 export class GoogleApiError extends Error {
   statusCode?: number;
   apiKey?: string;
@@ -25,37 +26,37 @@ class GoogleApiForwarder {
     try {
       let result;
       if (methodName === 'generateContent') {
-        // 处理非流式请求
+        // Handle non-streaming requests
         result = await generativeModel.generateContent(requestBody);
         const response = result.response;
-        console.info(`GoogleApiForwarder: 转发非流式请求到模型 ${modelId} 使用 Key ${apiKey.key}`);
+        console.info(`GoogleApiForwarder: Forwarded non-streaming request to model ${modelId} using key ${formatKeyForLogging(apiKey.key)}`);
         return { response };
       } else if (methodName === 'streamGenerateContent') {
-        // 处理流式请求
+        // Handle streaming requests
         result = await generativeModel.generateContentStream(requestBody);
-        console.info(`GoogleApiForwarder: 转发流式请求到模型 ${modelId} 使用 Key ${apiKey.key}`);
+        console.info(`GoogleApiForwarder: Forwarded streaming request to model ${modelId} using key ${formatKeyForLogging(apiKey.key)}`);
         return { stream: result.stream };
       } else {
-        // 理论上这部分代码不会被执行，因为 ProxyRoute 已经做了方法名验证
-        // 但作为防御性编程，保留此处的错误处理
+        // Theoretically this code should not be executed, as ProxyRoute has already validated the method name
+        // But as defensive programming, keep error handling here
         const unsupportedMethodError = new GoogleApiError(
           `Unsupported API method: ${methodName}`,
           400, // Bad Request
           apiKey.key,
           false
         );
-        console.error(`GoogleApiForwarder: 不支持的 API 方法 (${apiKey.key}):`, methodName);
+        console.error(`GoogleApiForwarder: Unsupported API method (${formatKeyForLogging(apiKey.key)}):`, methodName);
         return { error: unsupportedMethodError };
       }
 
     } catch (error: any) {
-      console.error(`GoogleApiForwarder: 调用 Google API 时发生错误 (${apiKey.key}):`, JSON.stringify(error));
+      console.error(`GoogleApiForwarder: Error occurred when calling Google API (${formatKeyForLogging(apiKey.key)}):`, JSON.stringify(error));
 
-      // 尝试识别速率限制错误 (HTTP 429) 或其他 Google API 错误
+      // Try to identify rate limit errors (HTTP 429) or other Google API errors
       const statusCode = error.response?.status || error.statusCode;
-      const isRateLimit = statusCode === 429; // Google API 返回 429 表示速率限制
+      const isRateLimit = statusCode === 429; // Google API returns 429 for rate limiting
 
-      // 创建自定义错误对象，包含 Key 信息和是否为速率限制错误
+      // Create custom error object containing Key information and whether it's a rate limit error
       const googleApiError = new GoogleApiError(
         `Google API Error: ${error.message}`,
         statusCode,

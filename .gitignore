@@ -5,3 +5,4 @@ out/
 api-key-aggregetor/out
 **/*.vsix
 .vscode-test/
+.idea

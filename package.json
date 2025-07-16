@@ -2,7 +2,7 @@
   "name": "api-key-aggregetor",
   "displayName": "Gemini API Key Aggregator Proxy",
   "description": "Aggregates multiple Google Gemini API keys to bypass rate limits and improve concurrency for VS Code extensions like Cline and Roo Code.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "ShaneYang",
   "engines": {
     "vscode": "^1.97.0"
@@ -60,21 +60,22 @@
           "description": "Port to be used by the proxy server."
         }
       }
-    
     }
   },
-
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:vscode": "vscode-test"
   },
   "devDependencies": {
     "@types/express": "^5.0.1",
-    "@types/mocha": "^10.0.10",
+    "@types/jest": "^30.0.0",
     "@types/node": "20.x",
     "@types/vscode": "^1.97.0",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
@@ -82,6 +83,8 @@
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
     "eslint": "^9.23.0",
+    "jest": "^30.0.4",
+    "ts-jest": "^29.4.0",
     "typescript": "^5.8.2"
   },
   "dependencies": {
@@ -95,5 +98,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/JamzYang/api-key-aggregetor"
-}
+  }
 }

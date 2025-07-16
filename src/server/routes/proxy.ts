@@ -5,8 +5,9 @@ import GoogleApiForwarder, { GoogleApiError } from '../core/GoogleApiForwarder';
 import { StreamHandler } from '../core/StreamHandler';
 import config from '../config';
 import { GenerateContentResponse } from '@google/generative-ai';
+import { formatKeyForLogging } from '../utils/keyFormatter';
 
-// 修改为导出一个函数，接受依赖作为参数
+// Modified to export a function that accepts dependencies as parameters
 export default function createProxyRouter(
   apiKeyManager: ApiKeyManager,
   requestDispatcher: RequestDispatcher,
@@ -15,16 +16,16 @@ export default function createProxyRouter(
 ): Router {
   const router = Router();
 
-  // 定义代理路由，匹配 Gemini API 的 generateContent 路径
-  // 定义代理路由，匹配 Gemini API 的 models/{model}:{method} 路径
-  // 使用正则表达式捕获 model 和 method
+  // Define proxy routes that match Gemini API's generateContent path
+  // Define proxy routes that match Gemini API's models/{model}:{method} path
+  // Use regular expressions to capture model and method
   router.post(/^\/v1beta\/models\/([^:]+):([^:]+)$/, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     let apiKey = null;
     try {
-      // 从正则表达式捕获组中提取 modelId 和 methodName
-      const modelId = req.params[0]; // 第一个捕获组是 modelId
-      const methodName = req.params[1]; // 第二个捕获组是 methodName
-      const requestBody = req.body; // 获取请求体
+      // Extract modelId and methodName from regex capture groups
+      const modelId = req.params[0]; // First capture group is modelId
+      const methodName = req.params[1]; // Second capture group is methodName
+      const requestBody = req.body; // Get request body
 
       // 验证方法名是否是 generateContent 或 streamGenerateContent
       if (methodName !== 'generateContent' && methodName !== 'streamGenerateContent') {
@@ -40,14 +41,13 @@ export default function createProxyRouter(
       }
 
 
-      // 1. 获取可用 API Key
-      console.log('ProxyRoute: Calling requestDispatcher.selectApiKey()...');
+      // 1. Get available API Key
       apiKey = await requestDispatcher.selectApiKey();
       console.log('ProxyRoute: requestDispatcher.selectApiKey() returned:', apiKey ? 'a key' : 'no key');
 
       if (!apiKey) {
-        // 没有可用 Key
-        console.warn('ProxyRoute: 没有可用的 API Key，返回 503。');
+        // No available keys
+        console.warn('ProxyRoute: No available API Keys, returning 503.');
         res.status(503).json({
           error: {
             code: 503,
@@ -55,76 +55,76 @@ export default function createProxyRouter(
             status: 'UNAVAILABLE',
           },
         });
-        return; // 结束请求处理
+        return; // End request processing
       }
 
-      console.info(`ProxyRoute: 使用 Key ${apiKey.key} 处理请求。`);
-      // 可选：增加 Key 的当前请求计数
+      // Optional: Increment current request count for the key
       // apiKeyManager.incrementRequestCount(apiKey.key);
 
-      // 2. 转发请求到 Google API
-      // 调用 forwardRequest 时传递 modelId, methodName 和 requestBody
+      // 2. Forward request to Google API
+      // Pass modelId, methodName and requestBody when calling forwardRequest
+      console.info(`ProxyRoute: Forwarding request to Google API for requestBody ==> ${JSON.stringify(requestBody).substring(0, 1000)} `);
       const forwardResult = await googleApiForwarder.forwardRequest(modelId, methodName, requestBody, apiKey);
 
-      // 可选：减少 Key 的当前请求计数 (无论成功或失败，请求结束时都应减少)
+      // Optional: Decrease current request count for the key (should be decreased when request ends, regardless of success or failure)
       if (apiKey) {
         apiKeyManager.decrementRequestCount(apiKey.key);
       }
 
 
       if (forwardResult.error) {
-        // 处理转发过程中发生的错误
+        // Handle errors that occurred during forwarding
         const err = forwardResult.error;
-        console.error(`ProxyRoute: 转发请求时发生错误 (${apiKey.key}):`, err.message);
+        console.error(`ProxyRoute: Error occurred during request forwarding (${formatKeyForLogging(apiKey.key)}):`, err.message);
 
         if (err.isRateLimitError) {
-          // 如果是速率限制错误，标记 Key 冷却
+          // If it's a rate limit error, mark the key for cooling down
           apiKeyManager.markAsCoolingDown(apiKey.key, config.KEY_COOL_DOWN_DURATION_MS);
-          // TODO: 实现可选的重试逻辑
-          // 目前将错误传递给错误处理中间件
+          // TODO: Implement optional retry logic
+          // Currently pass the error to error handling middleware
           next(err);
         } else if (err.statusCode === 401 || err.statusCode === 403) {
-           // 认证错误，标记 Key 为 disabled (如果需要持久化状态，这里需要更多逻辑)
-           // apiKeyManager.markAsDisabled(apiKey.key); // 假设有一个 markAsDisabled 方法
-           console.error(`ProxyRoute: Key ${apiKey.key} 认证失败。`);
-           next(err); // 将错误传递给错误处理中间件
+           // Authentication error, mark key as disabled (more logic needed here if state persistence is required)
+           // apiKeyManager.markAsDisabled(apiKey.key); // Assuming there's a markAsDisabled method
+           console.error(`ProxyRoute: Key ${formatKeyForLogging(apiKey.key)} authentication failed.`);
+           next(err); // Pass error to error handling middleware
         }
         else {
-          // 其他 Google API 错误，将错误传递给错误处理中间件
+          // Other Google API errors, pass error to error handling middleware
           next(err);
         }
 
       } else if (forwardResult.stream) {
-        // 处理流式响应
-        console.info(`ProxyRoute: 处理流式响应 (${apiKey.key})`);
-        // 调用 StreamHandler 处理流
-        // 处理 AsyncIterable 并将其内容发送到响应
-        // 设置响应头为 Server-Sent Events
+        // Handle streaming response
+        console.info(`ProxyRoute: Processing streaming response (${formatKeyForLogging(apiKey.key)})`);
+        // Call StreamHandler to handle the stream
+        // Process AsyncIterable and send its content to response
+        // Set response headers for Server-Sent Events
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
-        // 处理 AsyncIterable 并将其内容格式化为 SSE 发送
-        console.info(`ProxyRoute: 开始处理流式数据 (${apiKey.key})`);
+        // Process AsyncIterable and format its content as SSE for sending
+        console.info(`ProxyRoute: Starting to process streaming data (${formatKeyForLogging(apiKey.key)})`);
         for await (const chunk of forwardResult.stream) {
-          // 将 chunk 转换为 JSON 字符串
+          // Convert chunk to JSON string
           const data = JSON.stringify(chunk);
-          // 格式化为 SSE 事件
+          // Format as SSE event
           res.write(`data: ${data}\n\n`);
         }
-        console.info(`ProxyRoute: 流式数据处理完毕 (${apiKey.key})`);
-        // 流处理完毕，发送一个结束事件 (可选，取决于客户端如何处理)
+        console.info(`ProxyRoute: Streaming data processing completed (${formatKeyForLogging(apiKey.key)})`);
+        // Stream processing completed, send an end event (optional, depends on how client handles it)
         // res.write('event: end\ndata: {}\n\n');
-        res.end(); // 结束响应
+        res.end(); // End response
 
       } else if (forwardResult.response) {
-        // 处理非流式响应
-        console.info(`ProxyRoute: 处理非流式响应 (${apiKey.key})`);
-        // 直接将 Google API 返回的响应体发送给客户端
+        // Handle non-streaming response
+        console.info(`ProxyRoute: Processing non-streaming response (${formatKeyForLogging(apiKey.key)})`);
+        // Directly send the response body returned by Google API to the client
         res.json(forwardResult.response);
       } else {
-         // 未知情况
-         console.error(`ProxyRoute: 未知转发结果 (${apiKey.key})`);
+         // Unknown situation
+         console.error(`ProxyRoute: Unknown forwarding result (${formatKeyForLogging(apiKey.key)})`);
          res.status(500).json({
             error: {
               code: 500,
@@ -135,11 +135,11 @@ export default function createProxyRouter(
       }
 
     } catch (error) {
-      // 捕获其他潜在错误 (如 KeyManager 或 Dispatcher 错误)
-      console.error('ProxyRoute: 处理请求时发生未捕获的错误:', error);
-      next(error); // 传递给错误处理中间件
+      // Catch other potential errors (such as KeyManager or Dispatcher errors)
+      console.error('ProxyRoute: Uncaught error occurred while processing request:', error);
+      next(error); // Pass to error handling middleware
     }
   });
 
-  return router; // 返回配置好的 router
+  return router; // Return configured router
 }

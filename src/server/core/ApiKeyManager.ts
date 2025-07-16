@@ -1,31 +1,37 @@
 import config from '../config';
 import { ApiKey } from '../types';
+import { formatKeyForLogging, createKeyIdentifier, logKeyUsage } from '../utils/keyFormatter';
 
 class ApiKeyManager {
   private keys: Map<string, ApiKey> = new Map();
   private roundRobinIndex: number = 0;
+  private readonly USAGE_TRACKING_WINDOW_MS = 60 * 1000; // 60 seconds
+  private readonly CLEANUP_INTERVAL_MS = 30 * 1000; // 30 seconds
 
   constructor(apiKeys: string[]) {
     this.loadKeys(apiKeys);
-    // 定期检查冷却中的 Key 是否可恢复
-    setInterval(() => this.checkCoolingDownKeys(), 2000); // 每 2 秒检查一次
+    // Periodically check if cooling down keys can be recovered
+    setInterval(() => this.checkCoolingDownKeys(), 2000); // Check every 2 seconds
+    // Periodically cleanup old usage timestamps
+    setInterval(() => this.cleanupOldTimestamps(), this.CLEANUP_INTERVAL_MS);
   }
 
   loadKeys(apiKeys: string[]): void {
     if (!apiKeys || apiKeys.length === 0) {
-      console.warn('ApiKeyManager: 未加载任何 API Key。请检查配置。');
+      console.warn('ApiKeyManager: No API Keys loaded. Please check configuration.');
       return;
     }
 
     this.keys.clear();
-    apiKeys.forEach(key => {
+    apiKeys.forEach((key, index) => {
       this.keys.set(key, {
         key,
         status: 'available',
         currentRequests: 0,
+        usageTimestamps: [],
       });
     });
-    console.info(`ApiKeyManager: 成功加载 ${this.keys.size} 个 API Key。`);
+    console.info(`ApiKeyManager: Successfully loaded ${this.keys.size} API Keys.`);
   }
 
   getAvailableKey(): ApiKey | null {
@@ -34,16 +40,21 @@ class ApiKeyManager {
     );
 
     if (availableKeys.length === 0) {
-      console.warn('ApiKeyManager: 没有可用的 API Key。');
+      console.warn('ApiKeyManager: No available API Keys.');
       return null;
     }
 
-    // 简单轮询策略
+    // Simple round-robin strategy
     const selectedKey = availableKeys[this.roundRobinIndex % availableKeys.length];
     this.roundRobinIndex = (this.roundRobinIndex + 1) % availableKeys.length;
 
-    // 标记为正在使用 (如果需要更复杂的并发控制)
-    // this.incrementRequestCount(selectedKey.key);
+    // Record usage timestamp
+    this.recordKeyUsage(selectedKey.key);
+
+    // Log key usage with statistics
+    const usageCount = this.getUsageCountInLastMinute(selectedKey.key);
+    const keyIndex = Array.from(this.keys.keys()).indexOf(selectedKey.key);
+    logKeyUsage(selectedKey.key, usageCount, keyIndex);
 
     return selectedKey;
   }
@@ -53,7 +64,8 @@ class ApiKeyManager {
     if (apiKey) {
       apiKey.status = 'cooling_down';
       apiKey.coolingDownUntil = Date.now() + durationMs;
-      console.warn(`ApiKeyManager: Key ${key} 标记为冷却中，直到 ${new Date(apiKey.coolingDownUntil).toISOString()}`);
+      const keyId = createKeyIdentifier(key, Array.from(this.keys.keys()).indexOf(key));
+      console.warn(`ApiKeyManager: ${keyId} marked as cooling down until ${new Date(apiKey.coolingDownUntil).toISOString()}`);
     }
   }
 
@@ -62,11 +74,12 @@ class ApiKeyManager {
     if (apiKey) {
       apiKey.status = 'available';
       apiKey.coolingDownUntil = undefined;
-      console.info(`ApiKeyManager: Key ${key} 标记为可用。`);
+      const keyId = createKeyIdentifier(key, Array.from(this.keys.keys()).indexOf(key));
+      console.info(`ApiKeyManager: ${keyId} marked as available.`);
     }
   }
 
-  // 可选方法，用于更复杂的并发控制
+  // Optional method for more complex concurrency control
   incrementRequestCount(key: string): void {
     const apiKey = this.keys.get(key);
     if (apiKey) {
@@ -74,12 +87,65 @@ class ApiKeyManager {
     }
   }
 
-  // 可选方法，用于更复杂的并发控制
+  // Optional method for more complex concurrency control
   decrementRequestCount(key: string): void {
     const apiKey = this.keys.get(key);
     if (apiKey && apiKey.currentRequests > 0) {
       apiKey.currentRequests--;
     }
+  }
+
+  /**
+   * Records a usage timestamp for the specified API key
+   * @param key The API key that was used
+   */
+  private recordKeyUsage(key: string): void {
+    const apiKey = this.keys.get(key);
+    if (apiKey) {
+      const now = Date.now();
+      apiKey.usageTimestamps.push(now);
+
+      // Immediately clean up old timestamps for this key to prevent memory buildup
+      this.cleanupKeyTimestamps(apiKey);
+    }
+  }
+
+  /**
+   * Gets the usage count for a specific key within the last minute
+   * @param key The API key to check
+   * @returns Number of times the key was used in the last 60 seconds
+   */
+  getUsageCountInLastMinute(key: string): number {
+    const apiKey = this.keys.get(key);
+    if (!apiKey) {
+      return 0;
+    }
+
+    // Clean up old timestamps first
+    this.cleanupKeyTimestamps(apiKey);
+
+    return apiKey.usageTimestamps.length;
+  }
+
+  /**
+   * Cleans up old usage timestamps for a specific key
+   * @param apiKey The API key object to clean up
+   */
+  private cleanupKeyTimestamps(apiKey: ApiKey): void {
+    const now = Date.now();
+    const cutoffTime = now - this.USAGE_TRACKING_WINDOW_MS;
+
+    // Keep only timestamps within the tracking window
+    apiKey.usageTimestamps = apiKey.usageTimestamps.filter(timestamp => timestamp >= cutoffTime);
+  }
+
+  /**
+   * Cleans up old usage timestamps for all keys
+   */
+  private cleanupOldTimestamps(): void {
+    this.keys.forEach(apiKey => {
+      this.cleanupKeyTimestamps(apiKey);
+    });
   }
 
   private checkCoolingDownKeys(): void {

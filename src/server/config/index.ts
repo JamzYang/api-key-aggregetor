@@ -1,7 +1,7 @@
-import dotenv from 'dotenv';
-import * as vscode from 'vscode'; // 导入 vscode 模块
+import * as dotenv from 'dotenv';
+import * as vscode from 'vscode'; // Import vscode module
 
-// 加载环境变量
+// Load environment variables
 dotenv.config();
 
 // 定义配置接口
