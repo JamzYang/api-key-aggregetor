@@ -51,14 +51,33 @@ class GoogleApiForwarder {
 
     } catch (error: any) {
       console.error(`GoogleApiForwarder: Error occurred when calling Google API (${formatKeyForLogging(apiKey.key)}):`, JSON.stringify(error));
+      console.log('DEBUG: Raw error object from Google API:', error);
 
       // Try to identify rate limit errors (HTTP 429) or other Google API errors
-      const statusCode = error.response?.status || error.statusCode;
-      const isRateLimit = statusCode === 429; // Google API returns 429 for rate limiting
+      // Google Generative AI SDK may structure errors differently
+      let statusCode = error.status || error.statusCode || error.response?.status;
+      let errorMessage = error.message || 'Unknown error';
+
+      // Check if this is a rate limit error
+      const isRateLimit = statusCode === 429 ||
+                         errorMessage.includes('429') ||
+                         errorMessage.toLowerCase().includes('rate limit') ||
+                         errorMessage.toLowerCase().includes('quota') ||
+                         errorMessage.toLowerCase().includes('resource_exhausted');
+
+      // If we couldn't extract status code but error message suggests rate limiting
+      if (!statusCode && isRateLimit) {
+        statusCode = 429;
+      }
+
+      // Default status code if none found
+      if (!statusCode) {
+        statusCode = 500;
+      }
 
       // Create custom error object containing Key information and whether it's a rate limit error
       const googleApiError = new GoogleApiError(
-        `Google API Error: ${error.message}`,
+        `Google API Error: ${errorMessage}`,
         statusCode,
         apiKey.key,
         isRateLimit

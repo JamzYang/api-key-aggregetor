@@ -27,9 +27,9 @@ export default function createProxyRouter(
       const methodName = req.params[1]; // Second capture group is methodName
       const requestBody = req.body; // Get request body
 
-      // 验证方法名是否是 generateContent 或 streamGenerateContent
+      // Validate method name is either generateContent or streamGenerateContent
       if (methodName !== 'generateContent' && methodName !== 'streamGenerateContent') {
-         console.warn(`ProxyRoute: 不支持的 API 方法: ${methodName}`);
+         console.warn(`ProxyRoute: Unsupported API method: ${methodName}`);
          res.status(400).json({
             error: {
                code: 400,
@@ -79,19 +79,24 @@ export default function createProxyRouter(
 
         if (err.isRateLimitError) {
           // If it's a rate limit error, mark the key for cooling down
+          console.warn(`ProxyRoute: Rate limit error detected, marking key ${formatKeyForLogging(apiKey.key)} for cooling down`);
           apiKeyManager.markAsCoolingDown(apiKey.key, config.KEY_COOL_DOWN_DURATION_MS);
           // TODO: Implement optional retry logic
           // Currently pass the error to error handling middleware
           next(err);
+          return; // Ensure we don't continue processing
         } else if (err.statusCode === 401 || err.statusCode === 403) {
            // Authentication error, mark key as disabled (more logic needed here if state persistence is required)
            // apiKeyManager.markAsDisabled(apiKey.key); // Assuming there's a markAsDisabled method
            console.error(`ProxyRoute: Key ${formatKeyForLogging(apiKey.key)} authentication failed.`);
            next(err); // Pass error to error handling middleware
+           return; // Ensure we don't continue processing
         }
         else {
           // Other Google API errors, pass error to error handling middleware
+          console.error(`ProxyRoute: Other Google API error (${formatKeyForLogging(apiKey.key)}):`, err.message);
           next(err);
+          return; // Ensure we don't continue processing
         }
 
       } else if (forwardResult.stream) {
