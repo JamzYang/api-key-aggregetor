@@ -1,18 +1,21 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import ApiKeyManager from '../core/ApiKeyManager';
-import RequestDispatcher from '../core/RequestDispatcher';
+import RequestDispatcher, { ForwardingTarget } from '../core/RequestDispatcher';
 import GoogleApiForwarder, { GoogleApiError } from '../core/GoogleApiForwarder';
+import { ServerlessForwarder } from '../core/ServerlessForwarder';
 import { StreamHandler } from '../core/StreamHandler';
 import config from '../config';
 import { GenerateContentResponse } from '@google/generative-ai';
 import { formatKeyForLogging } from '../utils/keyFormatter';
+import { ServerlessInstance } from '../types/serverless';
 
 // Modified to export a function that accepts dependencies as parameters
 export default function createProxyRouter(
   apiKeyManager: ApiKeyManager,
   requestDispatcher: RequestDispatcher,
   googleApiForwarder: GoogleApiForwarder,
-  streamHandler: StreamHandler
+  streamHandler: StreamHandler,
+  serverlessForwarder?: ServerlessForwarder
 ): Router {
   const router = Router();
 
@@ -58,13 +61,72 @@ export default function createProxyRouter(
         return; // End request processing
       }
 
-      // Optional: Increment current request count for the key
-      // apiKeyManager.incrementRequestCount(apiKey.key);
+      // 2. Determine forwarding target (local or serverless)
+      const forwardingTarget = await requestDispatcher.determineForwardingTarget(apiKey);
+      console.info(`ProxyRoute: Forwarding target determined: ${typeof forwardingTarget === 'string' ? forwardingTarget : `serverless-${forwardingTarget.id}`}`);
 
-      // 2. Forward request to Google API
-      // Pass modelId, methodName and requestBody when calling forwardRequest
-      console.info(`ProxyRoute: Forwarding request to Google API for requestBody ==> ${JSON.stringify(requestBody).substring(0, 1000)} `);
-      const forwardResult = await googleApiForwarder.forwardRequest(modelId, methodName, requestBody, apiKey);
+      let forwardResult: any;
+
+      if (forwardingTarget === 'local') {
+        // Use local Google API forwarding
+        console.info(`ProxyRoute: Forwarding request to local Google API for requestBody ==> ${JSON.stringify(requestBody).substring(0, 1000)} `);
+        forwardResult = await googleApiForwarder.forwardRequest(modelId, methodName, requestBody, apiKey);
+      } else {
+        // Use serverless forwarding
+        if (!serverlessForwarder) {
+          throw new Error('ServerlessForwarder not available');
+        }
+
+        const serverlessInstance = forwardingTarget as ServerlessInstance;
+        console.info(`ProxyRoute: Forwarding request to serverless instance ${serverlessInstance.id} for requestBody ==> ${JSON.stringify(requestBody).substring(0, 1000)} `);
+
+        const timeout = requestDispatcher.getDeploymentConfig().timeout;
+
+        // 准备原始请求头部
+        const originalHeaders: Record<string, string> = {};
+        for (const [key, value] of Object.entries(req.headers)) {
+          if (typeof value === 'string') {
+            originalHeaders[key] = value;
+          }
+        }
+
+        const retryAttempts = requestDispatcher.getDeploymentConfig().retryAttempts;
+        const serverlessResult = await serverlessForwarder.forwardRequest(
+          serverlessInstance,
+          modelId,
+          methodName,
+          requestBody,
+          apiKey,
+          timeout,
+          originalHeaders,
+          retryAttempts
+        );
+
+        if (!serverlessResult.success) {
+          // Serverless forwarding failed, try fallback if enabled
+          const deploymentConfig = requestDispatcher.getDeploymentConfig();
+          if (deploymentConfig.fallbackToLocal) {
+            console.warn(`ProxyRoute: Serverless forwarding failed, falling back to local: ${serverlessResult.error?.message}`);
+            forwardResult = await googleApiForwarder.forwardRequest(modelId, methodName, requestBody, apiKey);
+          } else {
+            // Convert serverless error to Google API error format
+            forwardResult = {
+              error: {
+                message: serverlessResult.error?.message || 'Serverless forwarding failed',
+                statusCode: serverlessResult.error?.status || 500,
+                isRateLimitError: serverlessResult.error?.isRateLimitError || false
+              }
+            };
+          }
+        } else {
+          // Convert serverless result to Google API result format
+          forwardResult = {
+            response: serverlessResult.response,
+            stream: serverlessResult.stream,
+            error: null
+          };
+        }
+      }
 
       // Optional: Decrease current request count for the key (should be decreased when request ends, regardless of success or failure)
       if (apiKey) {

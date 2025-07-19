@@ -25,3 +25,6 @@ const config: Config = {
 
 // 导出配置对象
 export default config;
+
+// 导出Serverless配置管理器
+export { ServerlessConfigManager } from './serverlessConfig';
