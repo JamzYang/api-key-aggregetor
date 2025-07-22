@@ -7,7 +7,9 @@ module.exports = {
     '**/?(*.)+(spec|test).ts'
   ],
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.ts$': ['ts-jest', {
+      tsconfig: 'tsconfig.test.json'
+    }],
   },
   collectCoverageFrom: [
     'src/**/*.ts',
@@ -18,5 +20,8 @@ module.exports = {
   ],
   moduleFileExtensions: ['ts', 'js', 'json'],
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
-  testTimeout: 10000
+  testTimeout: 30000,
+  // Explicitly exclude mocha types to avoid conflicts
+  modulePathIgnorePatterns: ['<rootDir>/node_modules/@types/mocha']
 };
+

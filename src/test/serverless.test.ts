@@ -18,7 +18,7 @@ const mockContext = {
 };
 
 // Mock fetch for testing
-global.fetch = jest.fn();
+global.fetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 
 describe('Serverless Integration Tests', () => {
   let serverlessManager: ServerlessManager;
@@ -46,7 +46,7 @@ describe('Serverless Integration Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Initialize managers
     serverlessManager = new ServerlessManager();
     serverlessForwarder = new ServerlessForwarder();
@@ -54,8 +54,13 @@ describe('Serverless Integration Tests', () => {
     apiKeyManager = new ApiKeyManager(['test-api-key-123']);
     requestDispatcher = new RequestDispatcher(apiKeyManager, serverlessManager, bindingManager);
 
-    // Add test instance
-    serverlessManager.addInstance(mockInstance);
+    // Add test instance and ensure it's active
+    const activeInstance = { ...mockInstance, status: 'active' as const };
+    serverlessManager.addInstance(activeInstance);
+
+    // Verify instance was added correctly
+    const addedInstance = serverlessManager.getInstance('test-instance');
+    expect(addedInstance?.status).toBe('active');
   });
 
   afterEach(() => {
@@ -97,7 +102,7 @@ describe('Serverless Integration Tests', () => {
     test('should get active instance count', () => {
       const count = serverlessManager.getActiveInstanceCount();
       expect(count).toBe(1);
-      
+
       serverlessManager.markInstanceUnavailable('test-instance');
       const newCount = serverlessManager.getActiveInstanceCount();
       expect(newCount).toBe(0);
@@ -110,10 +115,22 @@ describe('Serverless Integration Tests', () => {
         ok: true,
         status: 200,
         headers: new Map([['content-type', 'application/json']]),
-        json: jest.fn().mockResolvedValue({ success: true })
-      };
+        json: jest.fn<() => Promise<any>>().mockResolvedValue({ success: true }),
+        text: jest.fn<() => Promise<string>>().mockResolvedValue('{"success": true}'),
+        blob: jest.fn(),
+        bytes: jest.fn(),
+        arrayBuffer: jest.fn(),
+        formData: jest.fn(),
+        clone: jest.fn(),
+        body: null,
+        bodyUsed: false,
+        redirected: false,
+        statusText: 'OK',
+        type: 'basic' as ResponseType,
+        url: 'https://test.example.com'
+      } as unknown as Response;
 
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse);
 
       const result = await serverlessForwarder.forwardRequest(
         mockInstance,
@@ -129,14 +146,27 @@ describe('Serverless Integration Tests', () => {
     });
 
     test('should handle request failure', async () => {
+      const errorText = 'Server error';
       const mockResponse = {
         ok: false,
         status: 500,
         statusText: 'Internal Server Error',
-        text: jest.fn().mockResolvedValue('Server error')
-      };
+        text: jest.fn<() => Promise<string>>().mockResolvedValue(errorText),
+        json: jest.fn<() => Promise<any>>().mockRejectedValue(new Error('Invalid JSON')),
+        blob: jest.fn(),
+        bytes: jest.fn(),
+        arrayBuffer: jest.fn(),
+        formData: jest.fn(),
+        clone: jest.fn(),
+        body: null,
+        bodyUsed: false,
+        redirected: false,
+        headers: new Map(),
+        type: 'basic' as ResponseType,
+        url: 'https://test.example.com'
+      } as unknown as Response;
 
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse);
 
       const result = await serverlessForwarder.forwardRequest(
         mockInstance,
@@ -148,15 +178,15 @@ describe('Serverless Integration Tests', () => {
 
       expect(result.success).toBe(false);
       expect(result.error?.status).toBe(500);
-      expect(result.error?.message).toBe('Server error');
+      expect(result.error?.message).toBe(`Request failed after 3 attempts: ${errorText}`);
     });
 
     test('should handle timeout', async () => {
-      (global.fetch as jest.Mock).mockImplementation(() => 
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('AbortError')), 100)
-        )
-      );
+      (global.fetch as jest.Mock).mockImplementation(() => {
+        const error = new Error('The operation was aborted');
+        error.name = 'AbortError';
+        return Promise.reject(error);
+      });
 
       const result = await serverlessForwarder.forwardRequest(
         mockInstance,
@@ -177,7 +207,7 @@ describe('Serverless Integration Tests', () => {
         status: 200
       };
 
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse as any);
 
       const result = await serverlessForwarder.testConnection(mockInstance);
       expect(result).toBe(true);
@@ -186,8 +216,8 @@ describe('Serverless Integration Tests', () => {
 
   describe('ApiKeyBindingManager', () => {
     beforeEach(() => {
-      (mockContext.secrets.get as jest.Mock).mockResolvedValue(null);
-      (mockContext.secrets.store as jest.Mock).mockResolvedValue(undefined);
+      (mockContext.secrets.get as jest.MockedFunction<any>).mockResolvedValue(null);
+      (mockContext.secrets.store as jest.MockedFunction<any>).mockResolvedValue(undefined);
     });
 
     test('should bind API key to instance', async () => {
@@ -246,17 +276,27 @@ describe('Serverless Integration Tests', () => {
     });
 
     test('should select serverless instance for API key', async () => {
+      // 确保实例在ServerlessManager中存在且为active状态
+      const testInstance = serverlessManager.getInstance('test-instance');
+      expect(testInstance).toBeDefined();
+      expect(testInstance?.status).toBe('active');
+
       await bindingManager.bindApiKeyToInstance(mockApiKey.key, mockInstance.id);
-      
+
       const instance = await requestDispatcher.selectServerlessInstanceForApiKey(mockApiKey);
       expect(instance).toBeDefined();
       expect(instance?.id).toBe(mockInstance.id);
     });
 
     test('should fallback to general selection when bound instance unavailable', async () => {
+      // 确保有一个可用的实例用于fallback
+      const testInstance = serverlessManager.getInstance('test-instance');
+      expect(testInstance).toBeDefined();
+      expect(testInstance?.status).toBe('active');
+
       // Bind to non-existent instance
       await bindingManager.bindApiKeyToInstance(mockApiKey.key, 'non-existent');
-      
+
       const instance = await requestDispatcher.selectServerlessInstanceForApiKey(mockApiKey);
       expect(instance).toBeDefined();
       expect(instance?.id).toBe(mockInstance.id);
@@ -266,7 +306,7 @@ describe('Serverless Integration Tests', () => {
   describe('Error Handling and Fallback', () => {
     test('should handle serverless failure with fallback', async () => {
       // Mock serverless failure
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockRejectedValue(new Error('Network error'));
 
       const result = await serverlessForwarder.forwardRequest(
         mockInstance,
@@ -285,10 +325,22 @@ describe('Serverless Integration Tests', () => {
         ok: false,
         status: 429,
         statusText: 'Too Many Requests',
-        text: jest.fn().mockResolvedValue('{"error":{"code":429,"message":"Rate limit exceeded"}}')
-      };
+        text: jest.fn<() => Promise<string>>().mockResolvedValue('{"error":{"code":429,"message":"Rate limit exceeded"}}'),
+        json: jest.fn<() => Promise<any>>().mockResolvedValue({"error":{"code":429,"message":"Rate limit exceeded"}}),
+        blob: jest.fn(),
+        bytes: jest.fn(),
+        arrayBuffer: jest.fn(),
+        formData: jest.fn(),
+        clone: jest.fn(),
+        body: null,
+        bodyUsed: false,
+        redirected: false,
+        headers: new Map(),
+        type: 'basic' as ResponseType,
+        url: 'https://test.example.com'
+      } as unknown as Response;
 
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse);
 
       const result = await serverlessForwarder.forwardRequest(
         mockInstance,
@@ -309,10 +361,22 @@ describe('Serverless Integration Tests', () => {
         ok: true,
         status: 200,
         headers: new Map([['content-type', 'application/json']]),
-        json: jest.fn().mockResolvedValue({ success: true })
-      };
+        json: jest.fn<() => Promise<any>>().mockResolvedValue({ success: true }),
+        text: jest.fn<() => Promise<string>>().mockResolvedValue('{"success": true}'),
+        blob: jest.fn(),
+        bytes: jest.fn(),
+        arrayBuffer: jest.fn(),
+        formData: jest.fn(),
+        clone: jest.fn(),
+        body: null,
+        bodyUsed: false,
+        redirected: false,
+        statusText: 'OK',
+        type: 'basic' as ResponseType,
+        url: 'https://test.example.com'
+      } as unknown as Response;
 
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse);
 
       const requests = Array(10).fill(null).map(() =>
         serverlessForwarder.forwardRequest(
@@ -337,11 +401,23 @@ describe('Serverless Integration Tests', () => {
         ok: true,
         status: 200,
         headers: new Map([['content-type', 'application/json']]),
-        json: jest.fn().mockResolvedValue({ success: true })
-      };
+        json: jest.fn<() => Promise<any>>().mockResolvedValue({ success: true }),
+        text: jest.fn<() => Promise<string>>().mockResolvedValue('{"success": true}'),
+        blob: jest.fn(),
+        bytes: jest.fn(),
+        arrayBuffer: jest.fn(),
+        formData: jest.fn(),
+        clone: jest.fn(),
+        body: null,
+        bodyUsed: false,
+        redirected: false,
+        statusText: 'OK',
+        type: 'basic' as ResponseType,
+        url: 'https://test.example.com'
+      } as unknown as Response;
 
-      (global.fetch as jest.Mock).mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve(mockResponse), 100))
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockImplementation(() =>
+        new Promise<Response>(resolve => setTimeout(() => resolve(mockResponse), 100))
       );
 
       const startTime = Date.now();
@@ -360,3 +436,4 @@ describe('Serverless Integration Tests', () => {
     });
   });
 });
+

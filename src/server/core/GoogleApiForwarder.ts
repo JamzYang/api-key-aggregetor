@@ -50,13 +50,15 @@ class GoogleApiForwarder {
       }
 
     } catch (error: any) {
-      console.error(`GoogleApiForwarder: Error occurred when calling Google API (${formatKeyForLogging(apiKey.key)}):`, JSON.stringify(error));
-      console.log('DEBUG: Raw error object from Google API:', error);
+      console.error(`❌ GoogleApiForwarder: Google API调用出错 (${formatKeyForLogging(apiKey.key)}):`, JSON.stringify(error));
+      console.log('🔍 GoogleApiForwarder: 原始错误对象:', error);
 
       // Try to identify rate limit errors (HTTP 429) or other Google API errors
       // Google Generative AI SDK may structure errors differently
       let statusCode = error.status || error.statusCode || error.response?.status;
       let errorMessage = error.message || 'Unknown error';
+
+      console.log(`🔍 GoogleApiForwarder: 错误分析 - 状态码: ${statusCode}, 消息: ${errorMessage}`);
 
       // Check if this is a rate limit error
       const isRateLimit = statusCode === 429 ||
@@ -65,14 +67,18 @@ class GoogleApiForwarder {
                          errorMessage.toLowerCase().includes('quota') ||
                          errorMessage.toLowerCase().includes('resource_exhausted');
 
+      console.log(`🔍 GoogleApiForwarder: 是否限流错误: ${isRateLimit}`);
+
       // If we couldn't extract status code but error message suggests rate limiting
       if (!statusCode && isRateLimit) {
         statusCode = 429;
+        console.log(`🔍 GoogleApiForwarder: 根据错误消息推断为429错误`);
       }
 
       // Default status code if none found
       if (!statusCode) {
         statusCode = 500;
+        console.log(`🔍 GoogleApiForwarder: 使用默认状态码500`);
       }
 
       // Create custom error object containing Key information and whether it's a rate limit error

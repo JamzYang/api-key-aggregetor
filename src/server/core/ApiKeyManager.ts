@@ -7,8 +7,10 @@ class ApiKeyManager {
   private roundRobinIndex: number = 0;
   private readonly USAGE_TRACKING_WINDOW_MS = 60 * 1000; // 60 seconds
   private readonly CLEANUP_INTERVAL_MS = 30 * 1000; // 30 seconds
+  private timeProvider: () => number;
 
-  constructor(apiKeys: string[]) {
+  constructor(apiKeys: string[], timeProvider: () => number = Date.now) {
+    this.timeProvider = timeProvider;
     this.loadKeys(apiKeys);
     // Periodically check if cooling down keys can be recovered
     setInterval(() => this.checkCoolingDownKeys(), 2000); // Check every 2 seconds
@@ -36,11 +38,11 @@ class ApiKeyManager {
 
   getAvailableKey(): ApiKey | null {
     const availableKeys = Array.from(this.keys.values()).filter(
-      key => key.status === 'available' && (!key.coolingDownUntil || key.coolingDownUntil <= Date.now())
+      key => key.status === 'available' && (!key.coolingDownUntil || key.coolingDownUntil <= this.timeProvider())
     );
 
     if (availableKeys.length === 0) {
-      console.warn('ApiKeyManager: No available API Keys.');
+      console.warn('❌ ApiKeyManager: No available API Keys');
       return null;
     }
 
@@ -63,9 +65,20 @@ class ApiKeyManager {
     const apiKey = this.keys.get(key);
     if (apiKey) {
       apiKey.status = 'cooling_down';
-      apiKey.coolingDownUntil = Date.now() + durationMs;
+      apiKey.coolingDownUntil = this.timeProvider() + durationMs;
       const keyId = createKeyIdentifier(key, Array.from(this.keys.keys()).indexOf(key));
-      console.warn(`ApiKeyManager: ${keyId} marked as cooling down until ${new Date(apiKey.coolingDownUntil).toISOString()}`);
+
+      // 安全地处理日期转换，避免在测试环境中的时间值问题
+      try {
+        const cooldownDate = new Date(apiKey.coolingDownUntil);
+        if (isNaN(cooldownDate.getTime())) {
+          console.warn(`ApiKeyManager: ${keyId} marked as cooling down (invalid date)`);
+        } else {
+          console.warn(`ApiKeyManager: ${keyId} marked as cooling down until ${cooldownDate.toISOString()}`);
+        }
+      } catch (error) {
+        console.warn(`ApiKeyManager: ${keyId} marked as cooling down (date conversion error)`);
+      }
     }
   }
 
@@ -102,7 +115,7 @@ class ApiKeyManager {
   private recordKeyUsage(key: string): void {
     const apiKey = this.keys.get(key);
     if (apiKey) {
-      const now = Date.now();
+      const now = this.timeProvider();
       apiKey.usageTimestamps.push(now);
 
       // Immediately clean up old timestamps for this key to prevent memory buildup
@@ -132,7 +145,7 @@ class ApiKeyManager {
    * @param apiKey The API key object to clean up
    */
   private cleanupKeyTimestamps(apiKey: ApiKey): void {
-    const now = Date.now();
+    const now = this.timeProvider();
     const cutoffTime = now - this.USAGE_TRACKING_WINDOW_MS;
 
     // Keep only timestamps within the tracking window
@@ -149,7 +162,7 @@ class ApiKeyManager {
   }
 
   private checkCoolingDownKeys(): void {
-    const now = Date.now();
+    const now = this.timeProvider();
     this.keys.forEach(apiKey => {
       if (apiKey.status === 'cooling_down' && apiKey.coolingDownUntil && apiKey.coolingDownUntil <= now) {
         this.markAsAvailable(apiKey.key);

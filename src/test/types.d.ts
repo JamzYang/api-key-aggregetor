@@ -9,6 +9,7 @@ declare global {
         createMockApiKey: (key: string) => ApiKey;
         sleep: (ms: number) => Promise<void>;
       };
+      fetch: jest.MockedFunction<typeof fetch>;
     }
   }
 
@@ -16,4 +17,6 @@ declare global {
     createMockApiKey: (key: string) => ApiKey;
     sleep: (ms: number) => Promise<void>;
   };
+
+  var fetch: jest.MockedFunction<typeof fetch>;
 }

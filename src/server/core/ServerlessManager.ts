@@ -18,7 +18,10 @@ export class ServerlessManager {
 
   constructor() {
     this.loadInstancesFromConfig();
-    this.startHealthChecking();
+    // Do not start health checking in test environment to prevent open handles
+    if (process.env.NODE_ENV !== 'test') {
+      this.startHealthChecking();
+    }
   }
 
   /**

@@ -155,7 +155,7 @@ export async function handleGeminiRequest(req: Request): Promise<Response> {
     }
     
     // 3. 获取API Key
-    const apiKey = req.headers.get("x-api-key") || 
+    const apiKey = req.headers.get("X-goog-api-key") || 
                    req.headers.get("authorization")?.replace("Bearer ", "");
     
     if (!apiKey) {
@@ -445,7 +445,7 @@ async function performDetailedHealthCheck(healthStatus: HealthStatus): Promise<v
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, x-request-id",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-goog-api-key, x-request-id",
   "Access-Control-Max-Age": "86400", // 24小时
   "Access-Control-Expose-Headers": "x-response-time, x-request-id"
 };
@@ -905,7 +905,7 @@ Deno.test("CORS preflight request", async () => {
     headers: {
       "Origin": "http://localhost:3000",
       "Access-Control-Request-Method": "POST",
-      "Access-Control-Request-Headers": "Content-Type, x-api-key"
+      "Access-Control-Request-Headers": "Content-Type, X-goog-api-key"
     }
   });
 
@@ -936,7 +936,7 @@ Deno.test("Invalid JSON request body", async () => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": TEST_API_KEY
+      "X-goog-api-key": TEST_API_KEY
     },
     body: "invalid json"
   });
@@ -952,7 +952,7 @@ Deno.test("Invalid API path", async () => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": TEST_API_KEY
+      "X-goog-api-key": TEST_API_KEY
     }
   });
 
@@ -966,7 +966,7 @@ Deno.test("Unsupported HTTP method", async () => {
   const response = await fetch(`${BASE_URL}/v1beta/models/gemini-pro/generateContent`, {
     method: "GET",
     headers: {
-      "x-api-key": TEST_API_KEY
+      "X-goog-api-key": TEST_API_KEY
     }
   });
 
@@ -1090,7 +1090,7 @@ curl "http://localhost:8000/health?detailed=true"
 # 测试非流式请求
 curl -X POST http://localhost:8000/v1beta/models/gemini-pro/generateContent \
   -H "Content-Type: application/json" \
-  -H "x-api-key: YOUR_ACTUAL_API_KEY" \
+  -H "X-goog-api-key: YOUR_ACTUAL_API_KEY" \
   -d '{
     "contents": [
       {
@@ -1106,7 +1106,7 @@ curl -X POST http://localhost:8000/v1beta/models/gemini-pro/generateContent \
 # 测试流式请求
 curl -X POST http://localhost:8000/v1beta/models/gemini-pro/streamGenerateContent \
   -H "Content-Type: application/json" \
-  -H "x-api-key: YOUR_ACTUAL_API_KEY" \
+  -H "X-goog-api-key: YOUR_ACTUAL_API_KEY" \
   -d '{
     "contents": [
       {
@@ -1130,12 +1130,12 @@ curl -X POST http://localhost:8000/v1beta/models/gemini-pro/generateContent \
 # 测试无效JSON
 curl -X POST http://localhost:8000/v1beta/models/gemini-pro/generateContent \
   -H "Content-Type: application/json" \
-  -H "x-api-key: test-key" \
+  -H "X-goog-api-key: test-key" \
   -d 'invalid json'
 
 # 测试不支持的方法
 curl -X GET http://localhost:8000/v1beta/models/gemini-pro/generateContent \
-  -H "x-api-key: test-key"
+  -H "X-goog-api-key: test-key"
 ```
 
 #### 5. 运行自动化测试
@@ -1559,7 +1559,7 @@ curl http://localhost:8000/health
 # API功能测试
 curl -X POST http://localhost:8000/v1beta/models/gemini-pro/generateContent \
   -H "Content-Type: application/json" \
-  -H "x-api-key: YOUR_API_KEY" \
+  -H "X-goog-api-key: YOUR_API_KEY" \
   -d '{"contents":[{"parts":[{"text":"Hello"}]}]}'
 
 # 运行测试套件

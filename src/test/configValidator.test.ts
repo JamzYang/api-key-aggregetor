@@ -3,7 +3,7 @@ import { ConfigValidator } from '../server/utils/configValidator';
 import { ServerlessInstanceConfig } from '../server/types/serverless';
 
 // Mock fetch for testing
-global.fetch = jest.fn();
+global.fetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 
 describe('ConfigValidator Tests', () => {
   beforeEach(() => {
@@ -150,7 +150,7 @@ describe('ConfigValidator Tests', () => {
         statusText: 'OK'
       };
 
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse as any);
 
       const result = await ConfigValidator.testConnectivity('https://example.com');
       
@@ -166,7 +166,7 @@ describe('ConfigValidator Tests', () => {
         statusText: 'Internal Server Error'
       };
 
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse as any);
 
       const result = await ConfigValidator.testConnectivity('https://example.com');
       
@@ -191,7 +191,7 @@ describe('ConfigValidator Tests', () => {
     });
 
     test('should handle network error', async () => {
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockRejectedValue(new Error('Network error'));
 
       const result = await ConfigValidator.testConnectivity('https://example.com');
       
@@ -350,7 +350,7 @@ describe('ConfigValidator Tests', () => {
         statusText: 'OK'
       };
 
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      (global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse as any);
 
       const results = await ConfigValidator.batchTestConnectivity(instances);
       
@@ -365,9 +365,9 @@ describe('ConfigValidator Tests', () => {
         { id: 'instance2', name: 'Instance 2', url: 'https://example2.com' }
       ];
 
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({ ok: true, status: 200 })
-        .mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Error' });
+      (global.fetch as jest.MockedFunction<typeof fetch>)
+        .mockResolvedValueOnce({ ok: true, status: 200 } as any)
+        .mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Error' } as any);
 
       const results = await ConfigValidator.batchTestConnectivity(instances);
       

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini API Key Aggregator 配置</title>
+    <style>
+        :root {
+            --primary-color: #007acc;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --border-color: var(--vscode-panel-border);
+            --background-color: var(--vscode-editor-background);
+            --text-color: var(--vscode-editor-foreground);
+            --input-background: var(--vscode-input-background);
+            --input-border: var(--vscode-input-border);
+            --button-background: var(--vscode-button-background);
+            --button-foreground: var(--vscode-button-foreground);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--vscode-font-family);
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            margin: 0;
+            color: var(--primary-color);
+            font-size: 2rem;
+        }
+
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.8;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: var(--text-color);
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+
+        .tab.active {
+            border-bottom-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 0 0 15px 0;
+            color: var(--primary-color);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--input-border);
+            border-radius: 4px;
+            background-color: var(--input-background);
+            color: var(--text-color);
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--input-border);
+            border-radius: 4px;
+            background-color: var(--input-background);
+            color: var(--text-color);
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background-color: var(--button-background);
+            color: var(--button-foreground);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: #212529;
+        }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .card {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: var(--vscode-editor-background);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .card-title {
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background-color: rgba(40, 167, 69, 0.2);
+            color: var(--success-color);
+        }
+
+        .status-inactive {
+            background-color: rgba(220, 53, 69, 0.2);
+            color: var(--danger-color);
+        }
+
+        .status-bound {
+            background-color: rgba(0, 122, 204, 0.2);
+            color: var(--primary-color);
+        }
+
+        .grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .grid-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .grid-3 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                flex-wrap: wrap;
+            }
+            
+            .tab {
+                flex: 1;
+                min-width: 120px;
+            }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            opacity: 0.7;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .message.success {
+            background-color: rgba(40, 167, 69, 0.1);
+            border: 1px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        .message.error {
+            background-color: rgba(220, 53, 69, 0.1);
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            opacity: 0.7;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            align-items: end;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .form-row .btn {
+            margin-bottom: 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Gemini API Key Aggregator</h1>
+            <p>统一管理您的API Keys和Serverless实例配置</p>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="overview">📊 概览</button>
+            <button class="tab" data-tab="apikeys">🔑 API Keys</button>
+            <button class="tab" data-tab="instances">🌐 Serverless实例</button>
+            <button class="tab" data-tab="bindings">🔗 绑定管理</button>
+            <button class="tab" data-tab="settings">⚙️ 设置</button>
+        </div>
+
+        <!-- 概览标签页 -->
+        <div id="overview" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="apiKeyCount">0</div>
+                    <div class="stat-label">API Keys</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="instanceCount">0</div>
+                    <div class="stat-label">Serverless实例</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="bindingCount">0</div>
+                    <div class="stat-label">绑定关系</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="deploymentMode">-</div>
+                    <div class="stat-label">部署模式</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3 class="section-title">🎯 快速操作</h3>
+                <div class="grid grid-2">
+                    <button class="btn btn-primary" onclick="switchTab('apikeys')">
+                        🔑 管理API Keys
+                    </button>
+                    <button class="btn btn-primary" onclick="switchTab('instances')">
+                        🌐 管理Serverless实例
+                    </button>
+                    <button class="btn btn-primary" onclick="switchTab('bindings')">
+                        🔗 管理绑定关系
+                    </button>
+                    <button class="btn btn-primary" onclick="switchTab('settings')">
+                        ⚙️ 系统设置
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Keys标签页 -->
+        <div id="apikeys" class="tab-content">
+            <div class="section">
+                <h3 class="section-title">➕ 添加新的API Key</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">API Key</label>
+                        <input type="password" id="newApiKey" class="form-input" placeholder="输入您的Gemini API Key">
+                    </div>
+                    <button class="btn btn-success" onclick="addApiKey()">
+                        ➕ 添加
+                    </button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3 class="section-title">📋 已配置的API Keys</h3>
+                <div id="apiKeysList">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        正在加载API Keys...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Serverless实例标签页 -->
+        <div id="instances" class="tab-content">
+            <div class="section">
+                <h3 class="section-title">➕ 添加新的Serverless实例</h3>
+                <div class="grid grid-3">
+                    <div class="form-group">
+                        <label class="form-label">实例名称</label>
+                        <input type="text" id="newInstanceName" class="form-input" placeholder="例如：Deno US East">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">实例URL</label>
+                        <input type="url" id="newInstanceUrl" class="form-input" placeholder="https://your-app.deno.dev">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">部署区域（可选）</label>
+                        <input type="text" id="newInstanceRegion" class="form-input" placeholder="us-east-1">
+                    </div>
+                </div>
+                <button class="btn btn-success" onclick="addServerlessInstance()">
+                    ➕ 添加实例
+                </button>
+            </div>
+
+            <div class="section">
+                <h3 class="section-title">🌐 已配置的Serverless实例</h3>
+                <div id="instancesList">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        正在加载Serverless实例...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 绑定管理标签页 -->
+        <div id="bindings" class="tab-content">
+            <div class="section">
+                <h3 class="section-title">🔗 创建新的绑定关系</h3>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label class="form-label">选择API Key</label>
+                        <select id="bindApiKeySelect" class="form-select">
+                            <option value="">请选择API Key</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">选择Serverless实例</label>
+                        <select id="bindInstanceSelect" class="form-select">
+                            <option value="">请选择实例</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-success" onclick="bindApiKey()">
+                    🔗 创建绑定
+                </button>
+            </div>
+
+            <div class="section">
+                <h3 class="section-title">📋 当前绑定关系</h3>
+                <div id="bindingsList">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        正在加载绑定关系...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设置标签页 -->
+        <div id="settings" class="tab-content">
+            <div class="section">
+                <h3 class="section-title">🚀 部署模式设置</h3>
+                <div class="form-group">
+                    <label class="form-label">选择部署模式</label>
+                    <select id="deploymentModeSelect" class="form-select" onchange="setDeploymentMode()">
+                        <option value="local">Local - 本地模式</option>
+                        <option value="serverless">Serverless - 纯Serverless模式</option>
+                        <option value="hybrid">Hybrid - 混合模式（推荐）</option>
+                    </select>
+                </div>
+                <p style="opacity: 0.8; font-size: 0.9rem; margin-top: 10px;">
+                    • <strong>Local</strong>: 使用传统的本地代理转发<br>
+                    • <strong>Serverless</strong>: 所有请求转发到Serverless实例<br>
+                    • <strong>Hybrid</strong>: 优先使用Serverless，失败时回退到本地
+                </p>
+            </div>
+
+            <div class="section">
+                <h3 class="section-title">📤 配置管理</h3>
+                <div class="grid grid-2">
+                    <button class="btn btn-primary" onclick="exportConfig()">
+                        📤 导出配置
+                    </button>
+                    <button class="btn btn-primary" onclick="importConfig()">
+                        📥 导入配置
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config-panel.js"></script>
+</body>
+</html>

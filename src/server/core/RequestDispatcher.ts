@@ -85,11 +85,8 @@ class RequestDispatcher {
   async determineForwardingTarget(apiKey?: ApiKey): Promise<ForwardingTarget> {
     const deploymentConfig = ServerlessConfigManager.getDeploymentConfig();
 
-    console.info(`RequestDispatcher: Deployment mode is ${deploymentConfig.mode}`);
-
     switch (deploymentConfig.mode) {
       case 'local':
-        // 纯本地模式
         return 'local';
 
       case 'serverless':
@@ -97,7 +94,9 @@ class RequestDispatcher {
         const serverlessInstance = apiKey ?
           await this.selectServerlessInstanceForApiKey(apiKey) :
           await this.selectServerlessInstance();
+
         if (serverlessInstance) {
+          console.info(`RequestDispatcher: Selected serverless instance ${serverlessInstance.id} (${serverlessInstance.name})`);
           return serverlessInstance;
         }
 
@@ -114,7 +113,9 @@ class RequestDispatcher {
         const hybridInstance = apiKey ?
           await this.selectServerlessInstanceForApiKey(apiKey) :
           await this.selectServerlessInstance();
+
         if (hybridInstance) {
+          console.debug(`RequestDispatcher: Selected serverless instance ${hybridInstance.id} (${hybridInstance.name}) in hybrid mode`);
           return hybridInstance;
         }
 

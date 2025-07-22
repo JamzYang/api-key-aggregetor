@@ -1,3 +1,5 @@
+import { mockSystemTime, restoreSystemTime } from './testUtils';
+
 // Jest setup file
 // This file is executed before each test file
 
@@ -5,6 +7,9 @@
 const originalConsole = { ...console };
 
 beforeEach(() => {
+  // Mock system time before each test
+  mockSystemTime();
+
   // You can customize which console methods to mock
   // For now, we'll keep them but you can uncomment to mock them
   // jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -14,6 +19,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Restore system time after each test
+  restoreSystemTime();
+
   // Restore all mocks after each test
   jest.restoreAllMocks();
 });

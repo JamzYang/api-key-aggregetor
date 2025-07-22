@@ -78,7 +78,7 @@ export class ConfigValidator {
 
     try {
       const parsedUrl = new URL(url);
-      
+
       // 检查协议
       if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
         errors.push('URL必须使用HTTP或HTTPS协议');
@@ -113,6 +113,15 @@ export class ConfigValidator {
       }
 
     } catch (error) {
+      // 检查是否是端口号问题
+      const portMatch = url.match(/:(\d+)(?:\/|$|\?|#)/);
+      if (portMatch) {
+        const port = parseInt(portMatch[1]);
+        if (port > 65535 || port < 1) {
+          errors.push('端口号必须在1-65535范围内');
+          return { isValid: false, errors, warnings };
+        }
+      }
       errors.push('URL格式无效');
     }
 

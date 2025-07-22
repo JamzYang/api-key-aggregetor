@@ -373,7 +373,7 @@ curl https://your-instance.com/health
 # 测试API转发
 curl -X POST https://your-instance.com/v1beta/models/gemini-pro:generateContent \
   -H "Content-Type: application/json" \
-  -H "x-api-key: YOUR_API_KEY" \
+  -H "X-goog-api-key: YOUR_API_KEY" \
   -d '{"contents":[{"parts":[{"text":"Hello"}]}]}'
 ```
 

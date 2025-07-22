@@ -77,6 +77,10 @@
       {
         "command": "geminiAggregator.showStatus",
         "title": "Gemini: Show Status"
+      },
+      {
+        "command": "geminiAggregator.openConfigPanel",
+        "title": "Gemini: Open Configuration Panel"
       }
     ],
     "configuration": {

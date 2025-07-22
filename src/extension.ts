@@ -63,6 +63,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	const streamHandler = new StreamHandler();
 	requestDispatcher = new RequestDispatcher(apiKeyManager, serverlessManager, bindingManager); // Pass all managers
 
+	// 添加请求日志中间件
+	app.use((req, _res, next) => {
+		const requestId = Math.random().toString(36).substring(7);
+		console.log(`🌐 [${requestId}] Express: ${req.method} ${req.url}`);
+		(req as any).requestId = requestId;
+		next();
+	});
+
 	// Create the proxy router
 	const proxyRouter = createProxyRouter(apiKeyManager, requestDispatcher, googleApiForwarder, streamHandler, serverlessForwarder);
 
@@ -79,15 +87,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	server = http.createServer(app);
 
 	server.listen(port, () => {
-		console.log(`Proxy server is running on port ${port}`);
+		console.log(`✅ Proxy server started on port ${port} - Mode: ${requestDispatcher.getDeploymentConfig().mode}, Keys: ${apiKeys.length}, Instances: ${serverlessManager ? serverlessManager.listInstances().length : 0}`);
 		vscode.window.showInformationMessage(`API Key Aggregator Proxy Server started on port ${port}`);
 	}).on('error', (err: any) => {
 		if (err.code === 'EADDRINUSE') {
-			console.warn(`Port ${port} is already in use. Proxy server may be running in another VS Code window.`);
+			console.warn(`⚠️ Port ${port} already in use, may be running in another VS Code window`);
 			vscode.window.showInformationMessage(`API Key Aggregator Proxy Server is already running on port ${port} in another VS Code window.`);
 			// Do NOT deactivate the extension, just don't start a new server
 		} else {
-			console.error('Failed to start proxy server:', err);
+			console.error('❌ Failed to start proxy server:', err);
 			vscode.window.showErrorMessage(`Failed to start API Key Aggregator Proxy Server: ${err.message}`);
 			// Deactivate the extension if the server fails to start for other reasons
 			deactivate();
@@ -825,6 +833,18 @@ console.log('Roo: After registering runserver command');
 		}
 	});
 	context.subscriptions.push(helpCommand);
+
+	// Configuration Panel command
+	const openConfigPanelCommand = vscode.commands.registerCommand('geminiAggregator.openConfigPanel', async () => {
+		try {
+			const { ConfigurationPanel } = await import('./webview/configurationPanel');
+			const panel = new ConfigurationPanel(context, apiKeyManager, serverlessManager, bindingManager, statusManager);
+			panel.show();
+		} catch (error) {
+			vscode.window.showErrorMessage(`打开配置面板失败: ${error instanceof Error ? error.message : '未知错误'}`);
+		}
+	});
+	context.subscriptions.push(openConfigPanelCommand);
 
 	// Initialize status manager and show initial status
 	statusManager.logInfo('Gemini API Key Aggregator 已启动');

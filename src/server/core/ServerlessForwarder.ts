@@ -60,13 +60,21 @@ export class ServerlessForwarder {
     }
 
     // 所有重试都失败了
+    // 保留最后一次错误的详细信息，同时标记重试已耗尽
+    const finalError = lastError && typeof lastError === 'object' ? {
+      ...lastError,
+      message: `Request failed after ${retryAttempts + 1} attempts: ${lastError.message || 'Unknown error'}`,
+      retryExhausted: true,
+      originalError: lastError
+    } : {
+      message: `Request failed after ${retryAttempts + 1} attempts`,
+      originalError: lastError,
+      retryExhausted: true
+    };
+
     return {
       success: false,
-      error: {
-        message: `Request failed after ${retryAttempts + 1} attempts`,
-        originalError: lastError,
-        retryExhausted: true
-      },
+      error: finalError,
       instanceId: instance.id,
       responseTime: 0
     };
@@ -85,21 +93,27 @@ export class ServerlessForwarder {
     originalHeaders?: Record<string, string>
   ): Promise<ServerlessForwardResult> {
     const startTime = Date.now();
-    
+
+    // 创建请求控制器用于超时处理
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
     try {
       console.info(`ServerlessForwarder: Forwarding request to ${instance.id} (${instance.url})`);
-      
+
       // 构建目标URL
-      const targetUrl = `${instance.url}/v1beta/models/${modelId}:${methodName}`;
-      
-      // 创建请求控制器用于超时处理
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      let targetUrl = `${instance.url}/v1beta/models/${modelId}:${methodName}`;
+
+      // 如果是流式请求，添加alt=sse查询参数
+      if (methodName === 'streamGenerateContent') {
+        targetUrl += '?alt=sse';
+        console.log(`📡 ServerlessForwarder: 添加流式查询参数，完整URL: ${targetUrl}`);
+      }
 
       // 准备请求头
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey.key,
+        'X-goog-api-key': apiKey.key,
         'User-Agent': 'Gemini-Aggregator/1.0'
       };
 
@@ -133,7 +147,6 @@ export class ServerlessForwarder {
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
       const responseTime = Date.now() - startTime;
 
       // 检查响应状态
@@ -173,10 +186,34 @@ export class ServerlessForwarder {
 
       // 检查是否为流式响应
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('text/event-stream') || contentType.includes('application/stream+json')) {
+      console.debug(`🔍 ServerlessForwarder: 响应头分析:`);
+      console.debug(`   - Content-Type: ${contentType}`);
+      console.debug(`   - 请求方法: ${methodName}`);
+
+      // 安全地获取所有响应头
+      const allHeaders: Record<string, string> = {};
+      try {
+        response.headers.forEach((value, key) => {
+          allHeaders[key] = value;
+        });
+        console.log(`   - 所有响应头:`, allHeaders);
+      } catch (error) {
+        console.log(`   - 无法获取所有响应头:`, error);
+      }
+
+      const isStreamingMethod = methodName === 'streamGenerateContent';
+      const isStreamingContentType = contentType.includes('text/event-stream') || contentType.includes('application/stream+json');
+
+      console.log(`🔍 ServerlessForwarder: 流式判断:`);
+      console.log(`   - 是流式方法: ${isStreamingMethod}`);
+      console.log(`   - 是流式Content-Type: ${isStreamingContentType}`);
+
+      // 修改判断逻辑：如果是流式方法，即使Content-Type不对也尝试按流式处理
+      if (isStreamingContentType || (isStreamingMethod && !contentType.includes('application/json'))) {
         // 处理流式响应
+        console.log(`📡 ServerlessForwarder: 按流式响应处理`);
         const stream = this.handleStreamResponse(response);
-        
+
         return {
           success: true,
           stream,
@@ -185,8 +222,9 @@ export class ServerlessForwarder {
         };
       } else {
         // 处理普通JSON响应
+        console.debug(`📄 ServerlessForwarder: 按普通JSON响应处理`);
         const responseData = await response.json();
-        
+
         return {
           success: true,
           response: responseData,
@@ -221,6 +259,9 @@ export class ServerlessForwarder {
         instanceId: instance.id,
         responseTime
       };
+    } finally {
+      // 确保定时器总是被清除，防止Jest挂起
+      clearTimeout(timeoutId);
     }
   }
 
