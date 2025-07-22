@@ -99,7 +99,7 @@ export class ServerlessConfigManager {
    */
   static getRequestTimeout(): number {
     const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-    return config.get<number>('requestTimeout', 30000);
+    return config.get<number>('requestTimeout', 90000);
   }
 
   /**

@@ -2,76 +2,91 @@
 
 Are you a developer using intelligent coding plugins like **Cline** or **Roo Code** and frequently encountering `429 too many requests` errors with the free tier of the Gemini API? This often happens due to concurrency limits when making multiple requests.
 
-This tool provides a solution by aggregating multiple Gemini API keys and distributing requests among them. By using this extension, you can effectively overcome the limitations of a single free API key, achieving **double freedom** in both **token usage** and **query frequency**.
-
-This is a project that integrates a Google Gemini API Key local proxy server into a VS Code extension. It aims to solve the concurrency limitations when using a single API Key and supports streaming responses.
+This tool provides a solution by aggregating multiple Gemini API keys and distributing requests among them. It offers two core modes: a simple **local proxy** for quick setup and a powerful **Serverless distribution** via Deno Deploy to truly bypass IP-based rate limits. By using this extension, you can achieve **double freedom** in both **token usage** and **query frequency**.
 
 ## Features
 
-*   Embeds an HTTP proxy server within the VS Code extension.
-*   Manages multiple Google Gemini API Keys.
-*   Distributes API requests to different Keys based on a strategy (currently simple round-robin).
-*   Supports forwarding streaming responses from the Google Gemini API.
-*   Handles rate limiting errors and cools down Keys.
-*   **🌟 NEW**: Supports Serverless instances for true multi-IP distribution.
-*   **🌟 NEW**: Three deployment modes: Local, Serverless, and Hybrid.
-*   **🌟 NEW**: API Key binding to specific Serverless instances.
-*   **🌟 NEW**: Real-time monitoring and health checks.
-*   **🌟 NEW**: Automatic failover and retry mechanisms.
+*   ✅ **Unified Configuration Panel**: Easily manage all settings through a user-friendly UI, no need to memorize complex commands.
+*   ✅ **Multiple Deployment Modes**: Supports `local`, `serverless`, and `hybrid` (Serverless with local fallback) modes to fit your needs.
+*   ✅ **True Multi-IP Distribution**: Integrates with Deno Deploy to distribute requests from different IP addresses, effectively eliminating IP rate limits.
+*   ✅ **Flexible Key-to-Instance Binding**: Assign specific API Keys to dedicated Serverless instances for optimized routing.
+*   ✅ **Health Status Monitoring**: Automatically checks the connectivity and response time of your Serverless instances.
+*   ✅ **Built-in Proxy Server**: Embeds an HTTP proxy server within the VS Code extension.
+*   ✅ **Streaming Response Support**: Natively forwards streaming responses from the Google Gemini API.
 
-## Usage
+## Quick Start
 
-### Installation
+Getting started is easy. All configurations can be managed through the **Configuration Panel**.
 
-Install the extension from the VS Code Marketplace.
+```mermaid
+graph TD
+    subgraph "Step 1: Open Configuration Panel"
+        A[1. Press Ctrl+Shift+P] --> B{2. Run 'Gemini: Open Configuration Panel'};
+    end
 
-Alternatively, you can build and install from source. See the [Development Guide](DEVELOPMENT.md) for instructions.
+    subgraph "Step 2: Choose Your Mode"
+        C[3. Operate within the panel]
+        C --> D{You have two options};
+        D -- "A. Local Proxy (Simple)" --> E[4a. In the 'API Keys' tab,<br>add one or more API Keys];
+        D -- "B. Serverless (Recommended)" --> F[4b. Fork & deploy the Deno project];
+        F --> G[5b. In the 'Serverless Instances' tab,<br>add your Deno instance URL];
+        G --> H[6b. Add Keys in 'API Keys' tab,<br>then link them in the 'Bindings' tab];
+    end
 
-### Configuring API Keys
+    subgraph "Step 3: Integrate"
+        I[7. Point your AI extension's<br>API Endpoint to http://localhost:3145];
+    end
 
-API Keys are managed through the VS Code command palette.
+    E --> I;
+    H --> I;
+```
 
-1.  Open the Command Palette (Ctrl+Shift+P or Cmd+Shift+P).
-2.  Run the command "Gemini: Add API Key".
-3.  Enter your Gemini API Key in the input box. The input will be hidden like a password.
-4.  You can add multiple keys by running the command again.
-5.  To view a summary of added keys, run the command "Gemini: List API Keys".
-6.  To modify an existing key, run the command "Gemini: Modify API Key".
-7.  To delete a key, run the command "Gemini: Delete API Key".
+### Mode A: Local Proxy (Quickest Setup)
 
-### 🌟 NEW: Serverless Configuration
+This is the simplest way to get started if you want to pool multiple API keys from a single IP address.
 
-The extension now supports Serverless instances for true multi-IP distribution:
+1.  Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac) and run the command **`Gemini: Open Configuration Panel`**.
+2.  Navigate to the **`API Keys`** tab.
+3.  Click "Add New API Key" and enter your Gemini API Key.
+4.  Repeat to add as many keys as you need.
+5.  **You're done!** The proxy is now running.
 
-#### Setting Deployment Mode
+### Mode B: Serverless Distribution (Recommended)
 
-1. Open the Command Palette (Ctrl+Shift+P or Cmd+Shift+P).
-2. Run the command "Gemini: Set Deployment Mode".
-3. Choose from three modes:
-   - **Local**: Traditional local proxy mode
-   - **Serverless**: Route requests to Serverless instances
-   - **Hybrid**: Serverless with local fallback (Recommended)
+This mode unleashes the full power of the extension by routing requests through different IP addresses, avoiding IP-based rate limits.
 
-#### Adding Serverless Instances
+**1. Prepare Your Deno Instance**
 
-1. Run the command "Gemini: Add Serverless Instance".
-2. Enter instance name (e.g., "Deno US East").
-3. Enter instance URL (e.g., "https://your-app.deno.dev").
-4. Optionally enter region (e.g., "us-east-1").
+First, you need a free Deno Deploy instance to act as your personal proxy.
 
-#### API Key Binding
+1.  **Fork the repository**: Go to [https://github.com/JamzYang/deno-gemini-proxy](https://github.com/JamzYang/deno-gemini-proxy) and click the "Fork" button.
+2.  **Install `deployctl`**: Open your terminal and run the following command:
+    ```bash
+    deno install -gArf jsr:@deno/deployctl
+    ```
+3.  **Deploy the project**: Navigate to your forked project's directory in the terminal and run:
+    ```bash
+    deployctl deploy
+    ```
+    Follow the on-screen prompts. Once finished, you will get a Deno Deploy URL (e.g., `https://your-project-name.deno.dev`). Copy this URL.
 
-1. Run the command "Gemini: Bind API Key to Instance".
-2. Select an API Key from the list.
-3. Select a Serverless instance to bind to.
-4. The system will prioritize using the bound instance for that API Key.
+**2. Configure in VS Code**
 
-#### Monitoring and Status
+1.  Press `Ctrl+Shift+P` and run **`Gemini: Open Configuration Panel`**.
+2.  Go to the **`Serverless Instances`** tab and add your Deno Deploy URL.
+3.  Go to the **`API Keys`** tab and add your Gemini API Key(s).
+4.  Go to the **`Bindings`** tab to link your API Key(s) to your Deno instance.
+5.  (Optional but recommended) Go to the **`Settings`** tab and change the Deployment Mode to **`Hybrid`** or **`Serverless`**.
 
-- **Status Bar**: Shows current deployment mode and active instances
-- **Status Command**: Run "Gemini: Show Status" for detailed information
-- **Validation**: Run "Gemini: Validate Configuration" to check setup
-- **Connectivity**: Run "Gemini: Test Instance Connectivity" to test instances
+## Configuration Panel Overview
+
+The **Configuration Panel** is your one-stop shop for managing this extension.
+
+*   **Overview**: See a dashboard of your current setup.
+*   **API Keys**: Add, delete, and modify your Gemini API Keys.
+*   **Serverless Instances**: Manage your Deno Deploy instances.
+*   **Bindings**: Link specific API Keys to specific instances.
+*   **Settings**: Switch between `local`, `serverless`, and `hybrid` deployment modes.
 
 ## Integration with other extensions (e.g., Cline)
 
@@ -81,9 +96,7 @@ For example, in the Cline extension settings, configure the Gemini API Endpoint 
 
 ## Configuration Reference
 
-### VS Code Settings
-
-You can configure the extension through VS Code settings:
+You can configure the extension through VS Code settings (`settings.json`):
 
 ```json
 {
@@ -95,52 +108,41 @@ You can configure the extension through VS Code settings:
       "name": "Deno US East",
       "url": "https://your-app-us.deno.dev",
       "region": "us-east-1"
-    },
-    {
-      "id": "vercel-eu-west",
-      "name": "Vercel EU West",
-      "url": "https://your-app-eu.vercel.app",
-      "region": "eu-west-1"
     }
   ],
   "geminiAggregator.fallbackToLocal": true,
-  "geminiAggregator.requestTimeout": 30000,
+  "geminiAggregator.requestTimeout": 60000,
   "geminiAggregator.retryAttempts": 2
 }
 ```
 
-### Configuration Parameters
-
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `port` | number | 3145 | Port for the proxy server |
-| `deploymentMode` | string | "local" | Deployment mode: local/serverless/hybrid |
-| `serverlessInstances` | array | [] | List of Serverless instance configurations |
-| `fallbackToLocal` | boolean | true | Whether to fallback to local processing |
-| `requestTimeout` | number | 30000 | Request timeout in milliseconds |
-| `retryAttempts` | number | 2 | Number of retry attempts |
+| `port` | number | 3145 | Port for the proxy server. |
+| `deploymentMode` | string | "local" | Deployment mode: `local`, `serverless`, or `hybrid`. |
+| `serverlessInstances` | array | [] | List of Serverless instance configurations. |
+| `fallbackToLocal` | boolean | true | Whether to fallback to local processing in `hybrid` mode. |
+| `requestTimeout` | number | 30000 | Request timeout in milliseconds for Serverless requests. |
+| `retryAttempts` | number | 2 | Number of retry attempts for failed Serverless requests. |
 
 ## Command Reference
 
+While the Configuration Panel is recommended, you can still use commands:
+
 | Command | Description |
 |---------|-------------|
-| `Gemini: Add API Key` | Add a new API key |
-| `Gemini: List API Keys` | View configured API keys |
-| `Gemini: Modify API Key` | Modify an existing API key |
-| `Gemini: Delete API Key` | Delete an API key |
-| `Gemini: Add Serverless Instance` | Add a Serverless instance |
-| `Gemini: Remove Serverless Instance` | Remove a Serverless instance |
-| `Gemini: List Serverless Instances` | View configured instances |
-| `Gemini: Set Deployment Mode` | Set deployment mode |
-| `Gemini: Bind API Key to Instance` | Bind API Key to instance |
-| `Gemini: Unbind API Key` | Unbind API Key |
-| `Gemini: Show Status` | Show system status |
-| `Gemini: Validate Configuration` | Validate configuration |
-| `Gemini: Test Instance Connectivity` | Test instance connectivity |
-
-## Project Status and Future Plans
-
-*   Consider more complex request distribution strategies.
+| `Gemini: Open Configuration Panel` | **(Recommended)** Open the main configuration UI. |
+| `Gemini: Add API Key` | Add a new API key. |
+| `Gemini: List API Keys` | View configured API keys. |
+| `Gemini: Modify API Key` | Modify an existing API key. |
+| `Gemini: Delete API Key` | Delete an API key. |
+| `Gemini: Add Serverless Instance` | Add a Serverless instance. |
+| `Gemini: Remove Serverless Instance` | Remove a Serverless instance. |
+| `Gemini: List Serverless Instances` | View configured instances. |
+| `Gemini: Set Deployment Mode` | Set deployment mode. |
+| `Gemini: Bind API Key to Instance` | Bind API Key to instance. |
+| `Gemini: Unbind API Key` | Unbind API Key. |
+| `Gemini: Show Status` | Show system status. |
 
 ## 中文文档
 
