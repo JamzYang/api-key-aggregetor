@@ -1,0 +1,102 @@
+service: gemini-aggregator
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'prod'}
+  region: ${opt:region, 'us-east-1'}
+  timeout: 30
+  memorySize: 256
+  environment:
+    NODE_ENV: ${self:provider.stage}
+  
+  # IAM role statements
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: 
+            - 'arn:aws:logs:${aws:region}:${aws:accountId}:log-group:/aws/lambda/*:*:*'
+
+functions:
+  proxy:
+    handler: index.handler
+    description: Forwards requests to Google Gemini API
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+          cors:
+            allowCredentials: false
+            allowedOrigins:
+              - '*'
+            allowedHeaders:
+              - Content-Type
+              - Authorization
+              - X-Goog-Api-Key
+              - Accept
+              - Accept-Encoding
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            maxAge: 86400
+      - httpApi:
+          path: /health
+          method: GET
+          cors:
+            allowCredentials: false
+            allowedOrigins:
+              - '*'
+            allowedHeaders:
+              - Content-Type
+              - Authorization
+              - X-Goog-Api-Key
+            allowedMethods:
+              - GET
+              - OPTIONS
+            maxAge: 86400
+      - httpApi:
+          path: /
+          method: ANY
+          cors:
+            allowCredentials: false
+            allowedOrigins:
+              - '*'
+            allowedHeaders:
+              - Content-Type
+              - Authorization
+              - X-Goog-Api-Key
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            maxAge: 86400
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+    host: 0.0.0.0
+    stage: local
+    prefix: ''
+
+package:
+  patterns:
+    - '!node_modules/**'
+    - '!.git/**'
+    - '!.serverless/**'
+    - '!README.md'
+    - '!.gitignore'

@@ -165,7 +165,238 @@ npm i -g vercel
 vercel --prod
 ```
 
-### 3. Netlify Functions
+### 3. AWS Lambda
+
+AWS Lambda 是最流行的 Serverless 平台之一，提供高性能和可靠性。
+
+#### 部署步骤
+
+1. **创建 Lambda 函数文件**
+
+创建 `lambda/index.js` 文件：
+
+```javascript
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com";
+
+exports.handler = async (event, context) => {
+  // 解析请求路径和查询参数
+  const path = event.requestContext?.http?.path || event.path || '/';
+  const queryString = event.rawQueryString || '';
+  const method = event.requestContext?.http?.method || event.httpMethod || 'GET';
+
+  // 健康检查端点
+  if (path === "/health") {
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "text/plain",
+      },
+      body: "OK",
+    };
+  }
+
+  // 转发Gemini API请求
+  if (path.startsWith("/v1beta/")) {
+    const targetUrl = `${GEMINI_API_BASE}${path}${queryString ? '?' + queryString : ''}`;
+
+    // 准备请求头
+    const headers = {
+      "User-Agent": "Gemini-Aggregator-Serverless/1.0",
+    };
+
+    // 从事件中提取相关的请求头
+    if (event.headers) {
+      Object.keys(event.headers).forEach(key => {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey === 'content-type' ||
+            lowerKey === 'authorization' ||
+            lowerKey.startsWith('x-goog-')) {
+          headers[key] = event.headers[key];
+        }
+      });
+    }
+
+    try {
+      const requestOptions = {
+        method: method,
+        headers: headers,
+      };
+
+      // 添加请求体（如果存在）
+      if (event.body && method !== 'GET') {
+        requestOptions.body = event.isBase64Encoded
+          ? Buffer.from(event.body, 'base64').toString()
+          : event.body;
+      }
+
+      const response = await fetch(targetUrl, requestOptions);
+      const responseText = await response.text();
+
+      // 准备响应头
+      const responseHeaders = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
+      return {
+        statusCode: response.status,
+        headers: responseHeaders,
+        body: responseText,
+      };
+    } catch (error) {
+      console.error('Forwarding failed:', error);
+      return {
+        statusCode: 500,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          error: "Forwarding failed",
+          details: error.message,
+        }),
+      };
+    }
+  }
+
+  return {
+    statusCode: 404,
+    headers: {
+      "Content-Type": "text/plain",
+    },
+    body: "Not Found",
+  };
+};
+```
+
+2. **创建部署配置**
+
+创建 `lambda/package.json` 文件：
+
+```json
+{
+  "name": "gemini-aggregator-lambda",
+  "version": "1.0.0",
+  "description": "AWS Lambda function for Gemini API forwarding",
+  "main": "index.js",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+```
+
+3. **使用 AWS SAM 部署**
+
+创建 `lambda/template.yaml` 文件：
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Gemini API Aggregator Lambda Function
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs18.x
+
+Resources:
+  GeminiAggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: index.handler
+      Events:
+        ApiGateway:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        HealthCheck:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: GET
+
+Outputs:
+  GeminiAggregatorApi:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+```
+
+4. **部署命令**
+
+```bash
+# 安装 AWS SAM CLI
+# Windows (使用 Chocolatey)
+choco install aws-sam-cli
+
+# 或者下载 MSI 安装包
+# https://github.com/aws/aws-sam-cli/releases/latest
+
+# 构建和部署
+cd lambda
+sam build
+sam deploy --guided
+
+# 首次部署后，可以使用
+sam deploy
+```
+
+5. **使用 Serverless Framework 部署**
+
+创建 `lambda/serverless.yml` 文件：
+
+```yaml
+service: gemini-aggregator
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: prod
+  region: us-east-1
+  timeout: 30
+  memorySize: 256
+
+functions:
+  proxy:
+    handler: index.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: true
+      - http:
+          path: /health
+          method: GET
+          cors: true
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+```
+
+部署命令：
+
+```bash
+# 安装 Serverless Framework
+npm install -g serverless
+
+# 部署
+cd lambda
+npm install
+serverless deploy
+
+# 本地测试
+serverless offline
+```
+
+### 4. Netlify Functions
 
 Netlify Functions基于AWS Lambda。
 
@@ -186,11 +417,11 @@ exports.handler = async (event, context) => {
       body: "OK",
     };
   }
-  
+
   // 转发Gemini API请求
   if (event.path.startsWith("/v1beta/")) {
     const targetUrl = `${GEMINI_API_BASE}${event.path}`;
-    
+
     try {
       const response = await fetch(targetUrl, {
         method: event.httpMethod,
@@ -200,9 +431,9 @@ exports.handler = async (event, context) => {
         },
         body: event.body,
       });
-      
+
       const data = await response.text();
-      
+
       return {
         statusCode: response.status,
         headers: Object.fromEntries(response.headers),
@@ -218,7 +449,7 @@ exports.handler = async (event, context) => {
       };
     }
   }
-  
+
   return {
     statusCode: 404,
     body: "Not Found",

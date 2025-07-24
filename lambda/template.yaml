@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Gemini API Aggregator Lambda Function
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs18.x
+    Environment:
+      Variables:
+        NODE_ENV: production
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    Description: Deployment stage
+
+Resources:
+  GeminiAggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: index.handler
+      Description: Forwards requests to Google Gemini API
+      Events:
+        ApiGateway:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            RestApiId: !Ref GeminiAggregatorApi
+        HealthCheck:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: GET
+            RestApiId: !Ref GeminiAggregatorApi
+        RootPath:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+            RestApiId: !Ref GeminiAggregatorApi
+
+  GeminiAggregatorApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Goog-Api-Key'"
+        AllowOrigin: "'*'"
+        MaxAge: "'600'"
+      BinaryMediaTypes:
+        - "*/*"
+
+Outputs:
+  GeminiAggregatorApiUrl:
+    Description: "API Gateway endpoint URL for Gemini Aggregator function"
+    Value: !Sub "https://${GeminiAggregatorApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}/"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl"
+  
+  GeminiAggregatorFunctionArn:
+    Description: "Gemini Aggregator Lambda Function ARN"
+    Value: !GetAtt GeminiAggregatorFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-FunctionArn"
