@@ -18,7 +18,7 @@ const postData = JSON.stringify(testData);
 const options = {
   hostname: 'localhost',
   port: 3145,
-  path: '/v1beta/models/gemini-1.5-flash:streamGenerateContent', // 注意这里是流式方法
+  path: '/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent', // 注意这里是流式方法
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
