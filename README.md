@@ -111,8 +111,7 @@ You can configure the extension through VS Code settings (`settings.json`):
     }
   ],
   "geminiAggregator.fallbackToLocal": true,
-  "geminiAggregator.requestTimeout": 60000,
-  "geminiAggregator.retryAttempts": 2
+  "geminiAggregator.requestTimeout": 180000
 }
 ```
 
@@ -122,8 +121,7 @@ You can configure the extension through VS Code settings (`settings.json`):
 | `deploymentMode` | string | "local" | Deployment mode: `local`, `serverless`, or `hybrid`. |
 | `serverlessInstances` | array | [] | List of Serverless instance configurations. |
 | `fallbackToLocal` | boolean | true | Whether to fallback to local processing in `hybrid` mode. |
-| `requestTimeout` | number | 30000 | Request timeout in milliseconds for Serverless requests. |
-| `retryAttempts` | number | 2 | Number of retry attempts for failed Serverless requests. |
+| `requestTimeout` | number | 180000 | Request timeout in milliseconds for Serverless requests. |
 
 ## Command Reference
 

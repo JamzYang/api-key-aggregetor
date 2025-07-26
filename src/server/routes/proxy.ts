@@ -23,26 +23,15 @@ export default function createProxyRouter(
   // Use regular expressions to capture model and method
   router.post(/^\/v1beta\/models\/([^:]+):([^:]+)$/, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const requestId = Math.random().toString(36).substring(7);
-    console.debug(`🚀🚀🚀 [${requestId}] ProxyRoute: 收到新请求 - ${req.method} ${req.originalUrl}`);
-    console.debug(`🔥🔥🔥 [${requestId}] ProxyRoute: 代理路由被触发！！！`);
-    console.debug(`📊📊📊 [${requestId}] ProxyRoute: 请求头部信息:`, {
-      'content-type': req.headers['content-type'],
-      'content-length': req.headers['content-length'],
-      'user-agent': req.headers['user-agent'],
-      'authorization': req.headers['authorization'] ? '***已设置***' : '未设置'
-    });
-
+    console.debug(`[${requestId}] ProxyRoute: 收到新请求 - ${req.method} ${req.originalUrl}`);
     let apiKey = null;
     try {
-      console.debug(`🔍 [${requestId}] ProxyRoute: 开始解析请求参数...`);
-
       // Extract modelId and methodName from regex capture groups
       const modelId = req.params[0]; // First capture group is modelId
       const methodName = req.params[1]; // Second capture group is methodName
       const requestBody = req.body; // Get request body
 
       console.log(`📝 [${requestId}] ProxyRoute: 解析结果 - modelId: ${modelId}, methodName: ${methodName}`);
-      console.log(`📦 [${requestId}] ProxyRoute: 请求体大小: ${JSON.stringify(requestBody).length} 字符`);
 
       // Validate method name is either generateContent or streamGenerateContent
       if (methodName !== 'generateContent' && methodName !== 'streamGenerateContent') {
@@ -56,8 +45,6 @@ export default function createProxyRouter(
          });
          return; // 结束请求处理
       }
-
-      console.log(`✅ [${requestId}] ProxyRoute: 方法验证通过，开始选择API Key...`);
 
       // 1. Get available API Key
       console.log(`🔑 [${requestId}] ProxyRoute: 调用 requestDispatcher.selectApiKey()...`);
@@ -77,31 +64,17 @@ export default function createProxyRouter(
         return; // End request processing
       }
 
-      console.debug(`🎯 [${requestId}] ProxyRoute: API Key选择成功，开始确定转发目标...`);
-
       // 2. Determine forwarding target (local or serverless)
-      console.debug(`🔄 [${requestId}] ProxyRoute: 调用 requestDispatcher.determineForwardingTarget()...`);
       const forwardingTarget = await requestDispatcher.determineForwardingTarget(apiKey);
-      console.info(`🎯 [${requestId}] ProxyRoute: 转发目标确定: ${typeof forwardingTarget === 'string' ? forwardingTarget : `serverless-${forwardingTarget.id}`}`);
 
       let forwardResult: any;
 
       if (forwardingTarget === 'local') {
         // Use local Google API forwarding
         console.info(`🏠 [${requestId}] ProxyRoute: 使用本地转发到Google API`);
-        console.debug(`📤 [${requestId}] ProxyRoute: 请求体预览: ${JSON.stringify(requestBody).substring(0, 200)}...`);
-
-        console.debug(`🔄 [${requestId}] ProxyRoute: 调用 googleApiForwarder.forwardRequest()...`);
         forwardResult = await googleApiForwarder.forwardRequest(modelId, methodName, requestBody, apiKey);
-        console.debug(`✅ [${requestId}] ProxyRoute: 本地转发完成，结果类型:`, {
-          hasResponse: !!forwardResult.response,
-          hasStream: !!forwardResult.stream,
-          hasError: !!forwardResult.error
-        });
       } else {
         // Use serverless forwarding
-        console.debug(`☁️ [${requestId}] ProxyRoute: 使用Serverless转发`);
-
         if (!serverlessForwarder) {
           console.error(`❌ [${requestId}] ProxyRoute: ServerlessForwarder不可用`);
           throw new Error('ServerlessForwarder not available');
@@ -109,10 +82,7 @@ export default function createProxyRouter(
 
         const serverlessInstance = forwardingTarget as ServerlessInstance;
         console.info(`🌐 [${requestId}] ProxyRoute: 转发到Serverless实例 ${serverlessInstance.id} (${serverlessInstance.name})`);
-        console.info(`📤 [${requestId}] ProxyRoute: 请求体预览: ${JSON.stringify(requestBody).substring(0, 200)}...`);
-
         const timeout = requestDispatcher.getDeploymentConfig().timeout;
-        console.info(`⏱️ [${requestId}] ProxyRoute: 超时设置: ${timeout}ms`);
 
         // 准备原始请求头部
         const originalHeaders: Record<string, string> = {};
@@ -122,9 +92,6 @@ export default function createProxyRouter(
           }
         }
 
-        const retryAttempts = requestDispatcher.getDeploymentConfig().retryAttempts;
-        console.info(`🔄 [${requestId}] ProxyRoute: 调用 serverlessForwarder.forwardRequest()，重试次数: ${retryAttempts}...`);
-
         const serverlessResult = await serverlessForwarder.forwardRequest(
           serverlessInstance,
           modelId,
@@ -132,16 +99,11 @@ export default function createProxyRouter(
           requestBody,
           apiKey,
           timeout,
-          originalHeaders,
-          retryAttempts
+          originalHeaders
         );
 
         console.info(`✅ [${requestId}] ProxyRoute: Serverless转发完成，结果:`, {
-          success: serverlessResult.success,
-          hasResponse: !!serverlessResult.response,
-          hasStream: !!serverlessResult.stream,
           hasError: !!serverlessResult.error,
-          instanceId: serverlessResult.instanceId,
           responseTime: serverlessResult.responseTime
         });
 
@@ -157,7 +119,8 @@ export default function createProxyRouter(
               error: {
                 message: serverlessResult.error?.message || 'Serverless forwarding failed',
                 statusCode: serverlessResult.error?.status || 500,
-                isRateLimitError: serverlessResult.error?.isRateLimitError || false
+                isRateLimitError: serverlessResult.error?.isRateLimitError || false,
+                isApiKeyError: serverlessResult.error?.isApiKeyError || false
               }
             };
           }
@@ -166,7 +129,10 @@ export default function createProxyRouter(
           forwardResult = {
             response: serverlessResult.response,
             stream: serverlessResult.stream,
-            error: null
+            error: null,
+            // 保存Serverless实例信息用于响应头
+            serverlessInstanceId: serverlessResult.instanceId,
+            serverlessResponseTime: serverlessResult.responseTime
           };
         }
       }
@@ -190,6 +156,27 @@ export default function createProxyRouter(
           // Currently pass the error to error handling middleware
           next(err);
           return; // Ensure we don't continue processing
+        } else if (err.isApiKeyError) {
+          // If it's an API key error, mark the key as invalid and remove it
+          console.error(`🔑 ProxyRoute: API Key无效错误检测到，Key: ${formatKeyForLogging(apiKey.key)}`);
+          console.error(`🔑 错误详情: ${err.message}`);
+
+          // 标记API Key为冷却状态，防止继续使用无效的key
+          apiKeyManager.markAsCoolingDown(apiKey.key, config.KEY_COOL_DOWN_DURATION_MS * 10); // 更长的冷却时间
+
+          // 返回明确的API Key错误
+          res.status(400).json({
+            error: {
+              code: 400,
+              message: 'API Key无效，请检查配置的API Key是否正确',
+              status: 'INVALID_ARGUMENT',
+              details: {
+                keyUsed: formatKeyForLogging(apiKey.key),
+                originalError: err.message
+              }
+            }
+          });
+          return;
         } else if (err.statusCode === 401 || err.statusCode === 403) {
            // Authentication error, mark key as disabled (more logic needed here if state persistence is required)
            // apiKeyManager.markAsDisabled(apiKey.key); // Assuming there's a markAsDisabled method
@@ -214,6 +201,24 @@ export default function createProxyRouter(
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
+        // 添加调试响应头
+        res.setHeader('X-API-Key-Used', formatKeyForLogging(apiKey.key));
+        res.setHeader('X-Request-ID', requestId);
+
+        // 确定转发目标
+        let forwardedTo = 'local';
+        if (forwardingTarget !== 'local') {
+          forwardedTo = (forwardingTarget as ServerlessInstance).id;
+        } else if ((forwardResult as any).serverlessInstanceId) {
+          forwardedTo = `serverless-${(forwardResult as any).serverlessInstanceId}`;
+        }
+        res.setHeader('X-Forwarded-To', forwardedTo);
+
+        // 如果有Serverless响应时间信息，也添加到响应头
+        if ((forwardResult as any).serverlessResponseTime) {
+          res.setHeader('X-Serverless-Response-Time', (forwardResult as any).serverlessResponseTime.toString());
+        }
+
         // Process AsyncIterable and format its content as SSE for sending
         console.info(`ProxyRoute: Starting to process streaming data (${formatKeyForLogging(apiKey.key)})`);
         for await (const chunk of forwardResult.stream) {
@@ -230,6 +235,26 @@ export default function createProxyRouter(
       } else if (forwardResult.response) {
         // Handle non-streaming response
         console.info(`ProxyRoute: Processing non-streaming response (${formatKeyForLogging(apiKey.key)})`);
+
+        // 添加调试响应头
+        res.setHeader('X-API-Key-Used', formatKeyForLogging(apiKey.key));
+        res.setHeader('X-Request-ID', requestId);
+
+        // 确定转发目标
+        let forwardedTo = 'local';
+        if (forwardingTarget !== 'local') {
+          forwardedTo = (forwardingTarget as ServerlessInstance).id;
+        } else if ((forwardResult as any).serverlessInstanceId) {
+          // 如果是从Serverless fallback到local后又成功的情况
+          forwardedTo = `serverless-${(forwardResult as any).serverlessInstanceId}`;
+        }
+        res.setHeader('X-Forwarded-To', forwardedTo);
+
+        // 如果有Serverless响应时间信息，也添加到响应头
+        if ((forwardResult as any).serverlessResponseTime) {
+          res.setHeader('X-Serverless-Response-Time', (forwardResult as any).serverlessResponseTime.toString());
+        }
+
         // Directly send the response body returned by Google API to the client
         res.json(forwardResult.response);
       } else {

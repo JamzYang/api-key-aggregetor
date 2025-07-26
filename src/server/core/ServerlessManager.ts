@@ -81,7 +81,6 @@ export class ServerlessManager {
     const selectedInstance = availableInstances[this.roundRobinIndex % availableInstances.length];
     this.roundRobinIndex = (this.roundRobinIndex + 1) % availableInstances.length;
 
-    console.info(`ServerlessManager: Selected instance ${selectedInstance.id} (${selectedInstance.name})`);
     return selectedInstance;
   }
 

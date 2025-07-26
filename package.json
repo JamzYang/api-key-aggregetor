@@ -81,6 +81,10 @@
       {
         "command": "geminiAggregator.openConfigPanel",
         "title": "Gemini: Open Configuration Panel"
+      },
+      {
+        "command": "geminiAggregator.networkDiagnostics",
+        "title": "Gemini: Network Diagnostics"
       }
     ],
     "configuration": {
@@ -131,13 +135,8 @@
         },
         "geminiAggregator.requestTimeout": {
           "type": "number",
-          "default": 30000,
+          "default": 180000,
           "description": "Request timeout in milliseconds for serverless forwarding."
-        },
-        "geminiAggregator.retryAttempts": {
-          "type": "number",
-          "default": 2,
-          "description": "Number of retry attempts for failed serverless requests."
         }
       }
     }

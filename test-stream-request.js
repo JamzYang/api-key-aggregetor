@@ -40,7 +40,7 @@ const req = http.request(options, (res) => {
   res.on('data', (chunk) => {
     chunkCount++;
     const chunkStr = chunk.toString();
-    console.log(`📥 收到数据块 #${chunkCount}:`, chunkStr.substring(0, 200) + (chunkStr.length > 200 ? '...' : ''));
+    console.log(`📥 收到数据块 #${chunkCount}:`, chunkStr);
   });
 
   res.on('end', () => {

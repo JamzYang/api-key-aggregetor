@@ -20,7 +20,6 @@ All notable changes to the "api-key-aggregetor" extension will be documented in 
 - `geminiAggregator.serverlessInstances` - Serverless instance configuration.
 - `geminiAggregator.fallbackToLocal` - Local fallback toggle.
 - `geminiAggregator.requestTimeout` - Request timeout duration.
-- `geminiAggregator.retryAttempts` - Number of retry attempts.
 
 #### 🛠️ Technical Improvements
 

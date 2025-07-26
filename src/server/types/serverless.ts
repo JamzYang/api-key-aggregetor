@@ -28,8 +28,6 @@ export interface DeploymentConfig {
   mode: 'local' | 'serverless' | 'hybrid';
   /** 是否回退到本地处理 */
   fallbackToLocal: boolean;
-  /** 重试次数 */
-  retryAttempts: number;
   /** 请求超时时间（毫秒） */
   timeout: number;
 }

@@ -184,7 +184,6 @@ interface ServerlessInstance {
 interface DeploymentConfig {
   mode: 'local' | 'serverless' | 'hybrid'
   fallbackToLocal: boolean
-  retryAttempts: number
   timeout: number
 }
 ```

@@ -201,8 +201,7 @@ Gemini API Key Aggregator 是一个VS Code扩展，用于聚合多个Google Gemi
 {
   "geminiAggregator.deploymentMode": "local",
   "geminiAggregator.fallbackToLocal": true,
-  "geminiAggregator.requestTimeout": 30000,
-  "geminiAggregator.retryAttempts": 2
+  "geminiAggregator.requestTimeout": 180000
 }
 \`\`\`
 
@@ -240,7 +239,7 @@ Gemini API Key Aggregator 是一个VS Code扩展，用于聚合多个Google Gemi
     }
   ],
   "geminiAggregator.fallbackToLocal": true,
-  "geminiAggregator.requestTimeout": 45000
+  "geminiAggregator.requestTimeout": 180000
 }
 \`\`\`
 
@@ -277,8 +276,7 @@ Gemini API Key Aggregator 是一个VS Code扩展，用于聚合多个Google Gemi
 \`\`\`json
 {
   "geminiAggregator.deploymentMode": "serverless",
-  "geminiAggregator.requestTimeout": 60000,
-  "geminiAggregator.retryAttempts": 3,
+  "geminiAggregator.requestTimeout": 180000,
   "geminiAggregator.fallbackToLocal": true
 }
 \`\`\`

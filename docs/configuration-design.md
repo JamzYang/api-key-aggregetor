@@ -54,7 +54,6 @@ graph TD
       "priority": 1,
       "enabled": true,
       "timeout": 30000,
-      "retryAttempts": 3,
       "healthCheckPath": "/health",
       "tags": ["production", "primary"],
       "createdAt": "2024-01-01T00:00:00Z",
@@ -80,7 +79,7 @@ interface ServerlessInstance {
   
   // 网络配置
   timeout?: number              // 请求超时时间(ms)
-  retryAttempts?: number        // 重试次数
+
   healthCheckPath?: string      // 健康检查路径
   
   // 元数据
@@ -219,7 +218,6 @@ class EnhancedApiKeyManager extends ApiKeyManager {
   },
   "geminiAggregator.networking": {
     "timeout": 30000,
-    "retryAttempts": 3,
     "retryDelay": 1000,
     "maxConcurrentRequests": 10
   },
@@ -242,8 +240,6 @@ interface DeploymentConfig {
 
 interface NetworkingConfig {
   timeout: number              // 请求超时时间(ms)
-  retryAttempts: number        // 重试次数
-  retryDelay: number           // 重试延迟(ms)
   maxConcurrentRequests: number // 最大并发请求数
 }
 

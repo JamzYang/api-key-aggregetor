@@ -645,7 +645,6 @@ console.log('Roo: After registering runserver command');
 			const deploymentMode = ServerlessConfigManager.getDeploymentMode();
 			const fallbackToLocal = ServerlessConfigManager.getFallbackToLocal();
 			const timeout = ServerlessConfigManager.getRequestTimeout();
-			const retryAttempts = ServerlessConfigManager.getRetryAttempts();
 
 			// Get instances
 			const instances = ServerlessConfigManager.getServerlessInstances();
@@ -670,7 +669,6 @@ console.log('Roo: After registering runserver command');
 • 部署模式: ${deploymentMode}
 • 本地回退: ${fallbackToLocal ? '启用' : '禁用'}
 • 请求超时: ${timeout}ms
-• 重试次数: ${retryAttempts}
 
 🖥️ Serverless实例:
 • 总实例数: ${instances.length}
@@ -822,6 +820,61 @@ console.log('Roo: After registering runserver command');
 		}
 	});
 	context.subscriptions.push(testConnectivityCommand);
+
+	// Network Diagnostics command (按需诊断，不产生额外费用)
+	const networkDiagnosticsCommand = vscode.commands.registerCommand('geminiAggregator.networkDiagnostics', async () => {
+		try {
+			const { ServerlessConfigManager } = await import('./server/config/serverlessConfig');
+			const instances = ServerlessConfigManager.getServerlessInstances();
+
+			// 显示诊断信息
+			const diagnosticsInfo = `
+# 🔍 网络诊断信息
+
+## 📊 当前配置
+- 部署模式: ${ServerlessConfigManager.getDeploymentMode()}
+- 回退到本地: ${ServerlessConfigManager.getFallbackToLocal()}
+- 请求超时: ${ServerlessConfigManager.getRequestTimeout()}ms
+
+## 🌐 Serverless 实例
+${instances.length > 0 ? instances.map(inst => `- ${inst.name}: ${inst.url}`).join('\n') : '- 无配置实例'}
+
+## 🔧 排查间歇性连接问题的建议
+
+### 1. 查看详细日志
+- 打开输出面板 (Ctrl+Shift+U)
+- 选择 "Gemini Aggregator" 频道
+- 查找包含 "🚨 ServerlessForwarder" 的错误日志
+
+### 2. 常见原因分析
+- **Deno Deploy 冷启动**: 实例可能正在重启
+- **网络波动**: 临时网络不稳定
+- **负载均衡**: Deno Deploy 的负载均衡切换
+
+### 3. 优化建议
+- 启用回退机制: fallbackToLocal 设为 true
+- 适当增加超时: requestTimeout 设为 180000ms
+
+### 4. 监控方法
+- 观察输出日志中的错误模式
+- 记录失败的时间点和频率
+- 检查是否与特定时间段相关
+
+💡 当前配置已启用自动回退，偶发失败不会影响功能使用。
+			`.trim();
+
+			const doc = await vscode.workspace.openTextDocument({
+				content: diagnosticsInfo,
+				language: 'markdown'
+			});
+			await vscode.window.showTextDocument(doc);
+
+		} catch (error) {
+			console.error('Network diagnostics failed:', error);
+			vscode.window.showErrorMessage(`网络诊断失败: ${error instanceof Error ? error.message : '未知错误'}`);
+		}
+	});
+	context.subscriptions.push(networkDiagnosticsCommand);
 
 	// Help command
 	const helpCommand = vscode.commands.registerCommand('geminiAggregator.showHelp', async () => {

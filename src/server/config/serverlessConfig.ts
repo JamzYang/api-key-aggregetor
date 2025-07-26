@@ -99,15 +99,7 @@ export class ServerlessConfigManager {
    */
   static getRequestTimeout(): number {
     const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-    return config.get<number>('requestTimeout', 90000);
-  }
-
-  /**
-   * 获取重试次数
-   */
-  static getRetryAttempts(): number {
-    const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-    return config.get<number>('retryAttempts', 2);
+    return config.get<number>('requestTimeout', 180000);
   }
 
   /**
@@ -117,7 +109,6 @@ export class ServerlessConfigManager {
     return {
       mode: this.getDeploymentMode(),
       fallbackToLocal: this.getFallbackToLocal(),
-      retryAttempts: this.getRetryAttempts(),
       timeout: this.getRequestTimeout()
     };
   }

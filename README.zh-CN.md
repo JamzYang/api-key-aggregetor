@@ -111,8 +111,7 @@ graph TD
     }
   ],
   "geminiAggregator.fallbackToLocal": true,
-  "geminiAggregator.requestTimeout": 30000,
-  "geminiAggregator.retryAttempts": 2
+  "geminiAggregator.requestTimeout": 180000
 }
 ```
 
@@ -122,8 +121,7 @@ graph TD
 | `deploymentMode` | `string` | "local" | 部署模式：`local`、`serverless` 或 `hybrid`。 |
 | `serverlessInstances` | `array` | [] | Serverless实例配置列表。 |
 | `fallbackToLocal` | `boolean` | true | 在 `hybrid` 模式下，当Serverless实例失败时是否回退到本地处理。 |
-| `requestTimeout` | `number` | 30000 | Serverless请求的超时时间（毫秒）。 |
-| `retryAttempts` | `number` | 2 | Serverless请求失败后的重试次数。 |
+| `requestTimeout` | `number` | 180000 | Serverless请求的超时时间（毫秒）。 |
 
 ## 命令参考
 

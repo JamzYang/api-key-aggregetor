@@ -157,8 +157,7 @@ export class ConfigurationPanel {
         const config = {
             deploymentMode: ServerlessConfigManager.getDeploymentMode(),
             fallbackToLocal: ServerlessConfigManager.getFallbackToLocal(),
-            requestTimeout: ServerlessConfigManager.getRequestTimeout(),
-            retryAttempts: ServerlessConfigManager.getRetryAttempts()
+            requestTimeout: ServerlessConfigManager.getRequestTimeout()
         };
 
         // 获取绑定关系
