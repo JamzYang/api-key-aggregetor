@@ -20,12 +20,12 @@ Getting started is easy. All configurations can be managed through the **Configu
 
 ```mermaid
 graph TD
-    subgraph "Step 1: Open Configuration Panel"
-        A[1. Press Ctrl+Shift+P] --> B{2. Run 'Gemini: Open Configuration Panel'};
+    subgraph "Step 1:Open Configuration Panel"
+        A[1.Press Ctrl+Shift+P] --> B{2.Run 'Gemini: Open Configuration Panel'};
     end
 
-    subgraph "Step 2: Choose Your Mode"
-        C[3. Operate within the panel]
+    subgraph "Step 2:Choose Your Mode"
+        C[3.Operate within the panel]
         C --> D{You have two options};
         D -- "A. Local Proxy (Simple)" --> E[4a. In the 'API Keys' tab,<br>add one or more API Keys];
         D -- "B. Serverless (Recommended)" --> F[4b. Fork & deploy the Deno project];
@@ -34,7 +34,7 @@ graph TD
     end
 
     subgraph "Step 3: Integrate"
-        I[7. Point your AI extension's<br>API Endpoint to http://localhost:3145];
+        I[7.Point your AI extension's<br>API Endpoint to http://localhost:3145];
     end
 
     E --> I;
