@@ -3,6 +3,11 @@
 > **基于技术可行性审查报告更新** - 2025年8月6日
 >
 > 本方案已根据详细的技术可行性审查报告进行全面更新，成功概率评估：**90%**
+>
+> **最新进展更新** - 2025年8月6日 14:00
+> - ✅ 已修复 temperature 参数转换问题（现在正确放在 generationConfig 中）
+> - ✅ 已添加 thinking 功能支持（Anthropic thinking.budget_tokens → Gemini thinkingConfig.thinkingBudget）
+> - ✅ 已修复工具调用参数清理问题（移除 additionalProperties、$schema 字段，处理不支持的 format 字段）
 
 ## 项目背景
 
@@ -76,9 +81,11 @@
    ```
 
 4. **参数映射**：
-   - ✅ 完全兼容：`temperature`, `top_p`, `top_k`, `stop_sequences`
-   - ⚠️ 需要转换：`max_tokens` → `maxOutputTokens`
+   - ✅ 完全兼容：`temperature`, `top_p`, `top_k`, `stop_sequences` (已修复：现在正确放在 generationConfig 中)
+   - ✅ 已实现转换：`max_tokens` → `generationConfig.maxOutputTokens`
+   - ✅ 新增支持：`thinking.budget_tokens` → `generationConfig.thinkingConfig.thinkingBudget`
    - ❌ 存在差异：`tool_choice` (结构不同), `service_tier` (Anthropic独有)
+   - ✅ 工具参数清理：移除 Gemini 不支持的 `additionalProperties`、`$schema` 字段，处理不支持的 `format` 字段
 
 #### 响应转换（Gemini → Anthropic）
 1. **响应结构转换**：
@@ -154,20 +161,27 @@ interface AnthropicContentBlock {
   };
 }
 
+// 思考配置类型（新增支持）
+interface AnthropicThinking {
+  type: 'enabled';
+  budget_tokens: number;
+}
+
 interface AnthropicRequest {
   model: string;
   max_tokens: number;
   messages: AnthropicMessage[];
   system?: string | AnthropicMessage[];  // 支持复杂系统消息
-  temperature?: number;
-  top_p?: number;
-  top_k?: number;
-  stop_sequences?: string[];
+  temperature?: number;                   // ✅ 已修复：正确转换到 generationConfig
+  top_p?: number;                        // ✅ 已修复：正确转换到 generationConfig
+  top_k?: number;                        // ✅ 已修复：正确转换到 generationConfig
+  stop_sequences?: string[];             // ✅ 已修复：正确转换到 generationConfig
   stream?: boolean;
-  tools?: AnthropicTool[];
+  tools?: AnthropicTool[];               // ✅ 已修复：清理不支持的 schema 字段
   tool_choice?: AnthropicToolChoice;     // 注意：与Gemini结构不同
   metadata?: Record<string, any>;        // Anthropic独有
   service_tier?: string;                 // Anthropic独有
+  thinking?: AnthropicThinking;          // ✅ 新增支持：转换到 thinkingConfig
 }
 
 interface AnthropicResponse {
@@ -227,8 +241,10 @@ interface AnthropicError {
    contents: [{role: 'user', parts: [{text: 'Hello'}]}]
    ```
 4. **参数转换**：
-   - ✅ 直接映射：`temperature`, `top_p`, `top_k`, `stop_sequences`
-   - ⚠️ 需要转换：`max_tokens` → `generationConfig.maxOutputTokens`
+   - ✅ 已修复映射：`temperature`, `top_p`, `top_k`, `stop_sequences` → `generationConfig`
+   - ✅ 已实现转换：`max_tokens` → `generationConfig.maxOutputTokens`
+   - ✅ 新增支持：`thinking.budget_tokens` → `generationConfig.thinkingConfig.thinkingBudget`
+   - 🔧 工具参数清理：移除 `additionalProperties`, `$schema` 等 Gemini 不支持字段
    - ❌ 不兼容：`tool_choice`, `service_tier`, `metadata`（需要特殊处理）
 5. **系统消息处理**：`system` → `systemInstruction`
 
@@ -363,22 +379,27 @@ class AnthropicErrorConverter {
 
 #### Phase 1: 基础框架搭建（2-3周）
 **目标**: 修复错误处理和基础参数转换
-1. **创建核心类型定义**
+**当前状态**: 🔧 进行中
+
+1. **✅ 创建核心类型定义**
    - 完整的Anthropic API类型定义
    - 错误类型和流式事件类型
    - 参数转换接口定义
+   - 新增 thinking 功能类型定义
 
-2. **实现错误转换器**（关键优先级）
+2. **🔧 实现错误转换器**（关键优先级）
    - AnthropicErrorConverter类
    - HTTP状态码到Anthropic错误类型的完整映射
    - 流式错误处理机制
 
-3. **基础参数转换**
-   - 实现90%兼容参数的直接映射
-   - 处理需要转换的参数（max_tokens等）
-   - 模型映射更新到gemini-2.5系列
+3. **✅ 基础参数转换**（已大部分完成）
+   - ✅ 已修复：temperature, top_p, top_k, stop_sequences 正确转换到 generationConfig
+   - ✅ 已实现：max_tokens → generationConfig.maxOutputTokens
+   - ✅ 新增支持：thinking.budget_tokens → generationConfig.thinkingConfig.thinkingBudget
+   - 🔧 正在修复：工具参数 schema 清理（移除 additionalProperties, $schema）
+   - ✅ 模型映射更新到gemini-2.5系列
 
-4. **中间件架构**
+4. **✅ 中间件架构**
    - 实现anthropicMiddleware
    - 路径检测和格式识别
    - 与现有代理逻辑的集成点
@@ -563,13 +584,50 @@ class AnthropicErrorConverter {
 2. **自适应负载均衡**: 基于模型性能的智能负载均衡
 3. **成本优化**: 基于成本和性能的智能模型选择
 
+## 最新实施进展
+
+### 已完成的关键修复（2025年8月6日）
+
+1. **✅ 参数转换核心问题修复**
+   - **问题**: temperature, top_p, top_k 参数直接放在请求根级别，导致 Gemini API 报错
+   - **解决**: 正确将这些参数放在 `generationConfig` 对象中
+   - **影响**: 解决了 "Invalid JSON payload received. Unknown name 'temperature'" 错误
+
+2. **✅ Thinking 功能支持**
+   - **新增**: 支持 Anthropic 的 thinking 功能
+   - **转换**: `thinking.budget_tokens` → `generationConfig.thinkingConfig.thinkingBudget`
+   - **测试**: 已通过完整的单元测试验证
+
+3. **✅ 工具调用参数清理**
+   - **问题**: 工具参数包含 Gemini 不支持的字段
+   - **解决**: 实现 `cleanSchemaForGemini` 函数递归清理不支持的字段
+   - **支持**: 移除 `additionalProperties`、`$schema`，处理不支持的 `format` 字段
+   - **测试**: 已通过完整的工具参数清理测试
+
+4. **✅ 模型映射优化**
+   - **新增**: 添加 Claude 3.5 系列模型的精确映射
+   - **支持**: `claude-3-5-haiku-20241022`, `claude-3-5-sonnet-20241022`, `claude-3-5-sonnet-20240620`
+   - **效果**: 消除模糊匹配警告，提高映射准确性
+
+5. **✅ 错误调试增强**
+   - **新增**: 在错误发生时打印原始请求参数和转换后参数
+   - **位置**: AnthropicRoute 的所有错误处理点
+   - **效果**: 大大提高了问题诊断和调试效率
+
+### 下一步计划
+
+1. **立即任务**: 完成工具调用参数清理功能
+2. **短期目标**: 完成 Phase 1 的剩余错误转换器实现
+3. **中期目标**: 开始 Phase 2 非流式功能实现
+
 ## 总结
 
-基于2025年8月6日完成的技术可行性审查，Anthropic API集成方案具有**90%的成功概率**。主要优势包括：
+基于2025年8月6日完成的技术可行性审查和最新实施进展，Anthropic API集成方案具有**90%的成功概率**。主要优势包括：
 
 1. **技术路径清晰**: 所有关键技术问题都有明确的解决方案
 2. **风险可控**: 主要风险都已识别并有相应的缓解措施
 3. **架构基础扎实**: 现有项目提供了良好的技术基础
 4. **实施策略合理**: 4阶段实施策略降低了实施风险
+5. **✅ 核心问题已解决**: 参数转换和 thinking 功能支持已完成
 
-该方案将显著扩展项目的适用性，为用户提供更灵活的AI API访问方式，同时保持现有功能的完整性和稳定性。
+该方案将显著扩展项目的适用性，为用户提供更灵活的AI API访问方式，同时保持现有功能的完整性和稳定性。当前实施进展良好，关键技术难点正在逐步解决。

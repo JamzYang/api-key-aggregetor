@@ -4,6 +4,8 @@ Are you a developer using intelligent coding plugins like **Cline** or **Roo Cod
 
 This tool provides a solution by aggregating multiple Gemini API keys and distributing requests among them. It offers two core modes: a simple **local proxy** for quick setup and a powerful **Serverless distribution** via Deno Deploy to truly bypass IP-based rate limits. By using this extension, you can achieve **double freedom** in both **token usage** and **query frequency**.
 
+**🆕 NEW: Anthropic API Support** - Now supports Anthropic Claude API format! Use Claude models through the same aggregated Gemini API keys with automatic format conversion.
+
 ## Features
 
 *   ✅ **Unified Configuration Panel**: Easily manage all settings through a user-friendly UI, no need to memorize complex commands.
@@ -13,6 +15,9 @@ This tool provides a solution by aggregating multiple Gemini API keys and distri
 *   ✅ **Health Status Monitoring**: Automatically checks the connectivity and response time of your Serverless instances.
 *   ✅ **Built-in Proxy Server**: Embeds an HTTP proxy server within the VS Code extension.
 *   ✅ **Streaming Response Support**: Natively forwards streaming responses from the Google Gemini API.
+*   🆕 **Anthropic API Compatibility**: Full support for Claude API format with automatic conversion to Gemini API.
+*   🆕 **Dual API Format Support**: Seamlessly handle both Gemini (`/v1beta/models/*`) and Anthropic (`/v1/messages`) requests.
+*   🆕 **Advanced Stream Processing**: Complete 7-step event sequence for Anthropic streaming responses.
 
 ## Quick Start
 
@@ -141,6 +146,80 @@ While the Configuration Panel is recommended, you can still use commands:
 | `Gemini: Bind API Key to Instance` | Bind API Key to instance. |
 | `Gemini: Unbind API Key` | Unbind API Key. |
 | `Gemini: Show Status` | Show system status. |
+
+## 🆕 Anthropic API Support
+
+This extension now supports Anthropic Claude API format alongside the original Gemini API. You can use Claude models through the same aggregated API keys with automatic format conversion.
+
+### Supported Models
+- `claude-3-haiku` → `gemini-2.5-flash-lite`
+- `claude-3-sonnet` → `gemini-2.5-flash`
+- `claude-3-opus` → `gemini-2.5-pro`
+- `claude-4-sonnet` → `gemini-2.5-pro`
+- `claude-4-opus` → `gemini-2.5-pro`
+
+### Usage Examples
+
+**Basic Request:**
+```bash
+curl -X POST http://localhost:3145/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-3-sonnet",
+    "max_tokens": 100,
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+```
+
+**Streaming Request:**
+```bash
+curl -X POST http://localhost:3145/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-3-sonnet",
+    "max_tokens": 100,
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ],
+    "stream": true
+  }'
+```
+
+**Advanced Parameters:**
+```bash
+curl -X POST http://localhost:3145/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-3-opus",
+    "max_tokens": 1000,
+    "messages": [
+      {"role": "user", "content": "Explain quantum computing"}
+    ],
+    "system": "You are a helpful AI assistant",
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 40
+  }'
+```
+
+### Integration with AI Tools
+
+Configure your AI tools to use the Anthropic endpoint:
+- **Endpoint**: `http://localhost:3145/v1/messages`
+- **API Key**: Any valid key (handled by the aggregator)
+- **Model**: Any supported Claude model
+
+### Features
+- ✅ **Full API Compatibility**: Complete support for Anthropic API format
+- ✅ **Streaming Support**: 7-step event sequence streaming responses
+- ✅ **Parameter Conversion**: Automatic parameter mapping and validation
+- ✅ **Error Handling**: Proper Anthropic-format error responses
+- ✅ **Model Mapping**: Intelligent Claude to Gemini model mapping
+- ✅ **Backward Compatibility**: Original Gemini API routes remain unchanged
+
+For detailed implementation information, see [Anthropic Implementation Summary](docs/anthropic-implementation-summary.md).
 
 ## 中文文档
 

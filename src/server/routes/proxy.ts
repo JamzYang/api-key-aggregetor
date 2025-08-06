@@ -4,9 +4,16 @@ import RequestDispatcher, { ForwardingTarget } from '../core/RequestDispatcher';
 import GoogleApiForwarder, { GoogleApiError } from '../core/GoogleApiForwarder';
 import { ServerlessForwarder } from '../core/ServerlessForwarder';
 import { StreamHandler } from '../core/StreamHandler';
+import { AnthropicAdapter } from '../core/AnthropicAdapter';
 import config from '../config';
 import { formatKeyForLogging } from '../utils/keyFormatter';
 import { ServerlessInstance } from '../types/serverless';
+import {
+  anthropicMiddleware,
+  setAnthropicResponseHeaders,
+  setAnthropicStreamHeaders,
+  sendAnthropicError
+} from '../middlewares/anthropicMiddleware';
 
 // Modified to export a function that accepts dependencies as parameters
 export default function createProxyRouter(
@@ -17,11 +24,208 @@ export default function createProxyRouter(
   serverlessForwarder?: ServerlessForwarder
 ): Router {
   const router = Router();
+  const anthropicAdapter = new AnthropicAdapter();
+
+  // 添加Anthropic中间件
+  router.use(anthropicMiddleware);
+
+  // Anthropic API路由 - /v1/messages
+  router.post('/v1/messages', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // 只有标记为Anthropic请求的才会进入这个处理逻辑
+    if (!req.isAnthropicRequest || !req.anthropicRequest || !req.anthropicRequestId) {
+      // 如果不是Anthropic请求，返回404
+      sendAnthropicError(res, 404, 'not_found_error', 'Endpoint not found');
+      return;
+    }
+
+    const requestId = req.anthropicRequestId;
+    const anthropicRequest = req.anthropicRequest;
+
+    console.debug(`[${requestId}] AnthropicRoute: 处理Anthropic API请求 - ${req.method} ${req.originalUrl}`);
+
+    let apiKey = null;
+    try {
+      // 1. 转换Anthropic请求为Gemini格式
+      const conversion = anthropicAdapter.convertRequest(anthropicRequest, requestId);
+      const { modelId, methodName, requestBody, context, warnings } = conversion;
+
+      // 记录转换警告
+      if (warnings.length > 0) {
+        console.warn(`[${requestId}] AnthropicRoute: 转换警告:`, warnings);
+      }
+
+      // 2. 获取可用的API Key
+      console.log(`[${requestId}] AnthropicRoute: 调用 requestDispatcher.selectApiKey()...`);
+      apiKey = await requestDispatcher.selectApiKey();
+      console.log(`[${requestId}] AnthropicRoute: requestDispatcher.selectApiKey() 返回:`,
+        apiKey ? `有效Key (${formatKeyForLogging(apiKey.key)})` : '无可用Key');
+
+      if (!apiKey) {
+        console.warn(`[${requestId}] AnthropicRoute: 无可用API Keys，返回503错误`);
+        sendAnthropicError(res, 503, 'overloaded_error', 'Service temporarily unavailable due to capacity limits', requestId);
+        return;
+      }
+
+      // 3. 确定转发目标
+      const forwardingTarget = await requestDispatcher.determineForwardingTarget(apiKey);
+      let forwardResult: any;
+
+      // 4. 执行转发（复用现有逻辑）
+      if (forwardingTarget === 'local') {
+        console.info(`[${requestId}] AnthropicRoute: 使用本地转发到Google API`);
+        forwardResult = await googleApiForwarder.forwardRequest(modelId, methodName, requestBody, apiKey);
+      } else {
+        if (!serverlessForwarder) {
+          console.error(`[${requestId}] AnthropicRoute: ServerlessForwarder不可用`);
+          throw new Error('ServerlessForwarder not available');
+        }
+
+        const serverlessInstance = forwardingTarget as ServerlessInstance;
+        console.info(`[${requestId}] AnthropicRoute: 转发到Serverless实例 ${serverlessInstance.id}`);
+        const timeout = requestDispatcher.getDeploymentConfig().timeout;
+
+        const originalHeaders: Record<string, string> = {};
+        for (const [key, value] of Object.entries(req.headers)) {
+          if (typeof value === 'string') {
+            originalHeaders[key] = value;
+          }
+        }
+
+        const serverlessResult = await serverlessForwarder.forwardRequest(
+          serverlessInstance,
+          modelId,
+          methodName,
+          requestBody,
+          apiKey,
+          timeout,
+          originalHeaders
+        );
+
+        if (!serverlessResult.success) {
+          const deploymentConfig = requestDispatcher.getDeploymentConfig();
+          if (deploymentConfig.fallbackToLocal) {
+            console.warn(`[${requestId}] AnthropicRoute: Serverless转发失败，回退到本地处理`);
+            forwardResult = await googleApiForwarder.forwardRequest(modelId, methodName, requestBody, apiKey);
+          } else {
+            forwardResult = {
+              error: {
+                message: serverlessResult.error?.message || 'Serverless forwarding failed',
+                statusCode: serverlessResult.error?.status || 500,
+                isRateLimitError: serverlessResult.error?.isRateLimitError || false,
+                isApiKeyError: serverlessResult.error?.isApiKeyError || false
+              }
+            };
+          }
+        } else {
+          forwardResult = {
+            response: serverlessResult.response,
+            stream: serverlessResult.stream,
+            error: null
+          };
+        }
+      }
+
+      // 5. 减少API Key的请求计数
+      if (apiKey) {
+        apiKeyManager.decrementRequestCount(apiKey.key);
+      }
+
+      // 6. 处理转发结果
+      if (forwardResult.error) {
+        console.error(`[${requestId}] AnthropicRoute: 转发过程中发生错误:`, forwardResult.error.message);
+
+        // 打印原始请求参数以便调试
+        console.error(`[${requestId}] AnthropicRoute: 原始Anthropic请求参数:`, JSON.stringify(anthropicRequest, null, 2));
+        console.error(`[${requestId}] AnthropicRoute: 转换后的Gemini请求参数:`, JSON.stringify(requestBody, null, 2));
+        console.error(`[${requestId}] AnthropicRoute: 错误详情:`, JSON.stringify(forwardResult.error, null, 2));
+
+        // 使用Anthropic错误转换器
+        const anthropicError = anthropicAdapter.getErrorConverter().convertGeminiError(forwardResult.error);
+
+        // 处理特殊错误类型
+        if (forwardResult.error.isRateLimitError) {
+          console.warn(`[${requestId}] AnthropicRoute: 速率限制错误，标记Key冷却`);
+          apiKeyManager.markAsCoolingDown(apiKey.key, config.KEY_COOL_DOWN_DURATION_MS);
+        } else if (forwardResult.error.isApiKeyError) {
+          console.error(`[${requestId}] AnthropicRoute: API Key无效错误`);
+          apiKeyManager.markAsCoolingDown(apiKey.key, config.KEY_COOL_DOWN_DURATION_MS * 10);
+        }
+
+        // 返回Anthropic格式的错误
+        setAnthropicResponseHeaders(res, requestId);
+        res.status(forwardResult.error.statusCode || 500).json(anthropicError);
+        return;
+      }
+
+      // 7. 处理成功响应
+      if (anthropicRequest.stream && forwardResult.stream) {
+        // 流式响应处理
+        console.info(`[${requestId}] AnthropicRoute: 处理流式响应`);
+        setAnthropicStreamHeaders(res, requestId);
+
+        // 使用AnthropicStreamConverter进行流式转换
+        const anthropicStream = anthropicAdapter.convertStreamResponse(forwardResult.stream, context);
+
+        try {
+          for await (const sseEvent of anthropicStream) {
+            res.write(sseEvent);
+          }
+          res.end();
+        } catch (streamError) {
+          console.error(`[${requestId}] AnthropicRoute: 流式处理错误:`, streamError);
+
+          // 打印原始请求参数以便调试
+          console.error(`[${requestId}] AnthropicRoute: 流式错误 - 原始Anthropic请求参数:`, JSON.stringify(anthropicRequest, null, 2));
+          console.error(`[${requestId}] AnthropicRoute: 流式错误详情:`, JSON.stringify(streamError, null, 2));
+
+          if (!res.headersSent) {
+            const anthropicError = anthropicAdapter.getErrorConverter().convertGeminiError(streamError);
+            setAnthropicResponseHeaders(res, requestId);
+            res.status(500).json(anthropicError);
+          } else {
+            res.end();
+          }
+        }
+
+      } else if (forwardResult.response) {
+        // 非流式响应处理
+        console.info(`[${requestId}] AnthropicRoute: 处理非流式响应`);
+
+        // 转换Gemini响应为Anthropic格式
+        const anthropicResponse = anthropicAdapter.convertResponse(forwardResult.response, context);
+
+        setAnthropicResponseHeaders(res, requestId);
+        res.json(anthropicResponse);
+      } else {
+        console.error(`[${requestId}] AnthropicRoute: 未知的转发结果`);
+        sendAnthropicError(res, 500, 'api_error', 'Unknown forwarding result', requestId);
+      }
+
+    } catch (error) {
+      console.error(`[${requestId}] AnthropicRoute: 处理请求时发生未捕获错误:`, error);
+
+      // 打印原始请求参数以便调试
+      console.error(`[${requestId}] AnthropicRoute: 未捕获错误 - 原始Anthropic请求参数:`, JSON.stringify(anthropicRequest, null, 2));
+      console.error(`[${requestId}] AnthropicRoute: 未捕获错误详情:`, JSON.stringify(error, null, 2));
+
+      // 使用Anthropic错误转换器处理未捕获的错误
+      const anthropicError = anthropicAdapter.getErrorConverter().convertGeminiError(error);
+      setAnthropicResponseHeaders(res, requestId);
+      res.status(500).json(anthropicError);
+    }
+  });
 
   // Define proxy routes that match Gemini API's generateContent path
   // Define proxy routes that match Gemini API's models/{model}:{method} path
   // Use regular expressions to capture model and method
   router.post(/^\/v1beta\/models\/([^:]+):([^:]+)$/, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // 如果是Anthropic请求，跳过Gemini处理逻辑
+    if (req.isAnthropicRequest) {
+      console.debug(`Gemini路由: 跳过Anthropic请求 - ${req.method} ${req.originalUrl}`);
+      next(); // 传递给下一个中间件或返回404
+      return;
+    }
+
     const requestId = Math.random().toString(36).substring(7);
     console.debug(`[${requestId}] ProxyRoute: 收到新请求 - ${req.method} ${req.originalUrl}`);
     let apiKey = null;
